@@ -83,7 +83,7 @@ object PayeshSyncClient {
         finally { spec.clearPassword() }
     }
 
-    private fun encrypt(plain: ByteArray, passphrase: CharArray): ByteArray {
+    internal fun encrypt(plain: ByteArray, passphrase: CharArray): ByteArray {
         val salt = ByteArray(16).also(java.security.SecureRandom()::nextBytes)
         val nonce = ByteArray(12).also(java.security.SecureRandom()::nextBytes)
         val secret = key(passphrase, salt)
@@ -98,7 +98,7 @@ object PayeshSyncClient {
         } finally { secret.fill(0) }
     }
 
-    private fun decrypt(bytes: ByteArray, passphrase: CharArray): ByteArray {
+    internal fun decrypt(bytes: ByteArray, passphrase: CharArray): ByteArray {
         require(bytes.size in 52..25_000_000 && bytes.copyOfRange(0, 8).contentEquals(header)) { "قالب نسخه ابری معتبر نیست" }
         val salt = bytes.copyOfRange(8, 24)
         val nonce = bytes.copyOfRange(24, 36)
