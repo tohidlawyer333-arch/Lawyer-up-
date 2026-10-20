@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
@@ -13,6 +14,7 @@ import android.os.Build
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -34,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.lawyerup.app.*
 import com.lawyerup.app.data.*
+import com.lawyerup.app.notifications.DeadlineReminderScheduler
 import com.lawyerup.app.data.local.AppDatabase
 import com.lawyerup.app.domain.*
 import com.lawyerup.app.ui.screens.*
@@ -92,6 +95,34 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
     var claimId by remember {mutableStateOf<Long?>(null)}
     val law=remember {LawRepository(AppDatabase.getInstance(context))}
     val snack=remember {SnackbarHostState()}
+    var remindersEnabled by remember { mutableStateOf(DeadlineReminderScheduler.isEnabled(context)) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            remindersEnabled = true
+            DeadlineReminderScheduler.setEnabled(context, true)
+            data.tasks.forEach { DeadlineReminderScheduler.schedule(context, it) }
+            scope.launch { snack.showSnackbar("یادآوری موعدهای تأییدشده فعال شد") }
+        } else {
+            remindersEnabled = false
+            DeadlineReminderScheduler.setEnabled(context, false)
+            scope.launch { snack.showSnackbar("مجوز اعلان داده نشد؛ یادآوری‌ها غیرفعال ماند") }
+        }
+    }
+    fun toggleReminders() {
+        if (remindersEnabled) {
+            remindersEnabled = false
+            DeadlineReminderScheduler.setEnabled(context, false)
+            scope.launch { snack.showSnackbar("یادآوری‌ها غیرفعال شد") }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            remindersEnabled = true
+            DeadlineReminderScheduler.setEnabled(context, true)
+            data.tasks.forEach { DeadlineReminderScheduler.schedule(context, it) }
+            scope.launch { snack.showSnackbar("یادآوری موعدهای تأییدشده فعال شد") }
+        }
+    }
     LaunchedEffect(message) {if(message.isNotEmpty()){snack.showSnackbar(message);model.message.value=""}}
     LaunchedEffect(locked) {if(locked) portal?.cancel()}
     DisposableEffect(Unit) {onDispose {portal?.close()}}
@@ -118,6 +149,10 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
             }
         }
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
+        IconButton(onClick=::toggleReminders) {
+            Icon(Icons.Outlined.NotificationsNone,if(remindersEnabled) "غیرفعال‌کردن یادآوری موعدها" else "فعال‌کردن یادآوری موعدها",
+                tint=if(remindersEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
     })},snackbarHost={SnackbarHost(snack)},bottomBar={NavigationBar {
         listOf(Triple("home","دفتر",Icons.Outlined.SpaceDashboard),Triple("cases","پرونده‌ها",Icons.Outlined.FolderOpen),Triple("notices","ابلاغ‌ها",Icons.Outlined.NotificationsNone),Triple("tasks","پیگیری",Icons.Outlined.TaskAlt),Triple("tools","ابزارها",Icons.Outlined.Widgets)).forEach { (route,label,icon) ->
