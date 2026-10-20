@@ -155,10 +155,11 @@ fun Metric(title:String,value:Int,icon:ImageVector,modifier:Modifier,onClick:()-
 @Composable fun Badge(text:String) {Surface(color=MaterialTheme.colorScheme.secondaryContainer,shape=RoundedCornerShape(10.dp)) {Text(text,Modifier.padding(horizontal=10.dp,vertical=6.dp),style=MaterialTheme.typography.labelSmall)}}
 
 @Composable
+@Composable
 fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
     var query by rememberSaveable {mutableStateOf("")}
     var filter by rememberSaveable {mutableStateOf("همه")}
-    val records=(if(notices)data.notices else data.cases).filter {record ->
+    val filtered=(if(notices)data.notices else data.cases).filter {record ->
         normalize(record.text+record.caseNumber+record.noticeNumber).contains(normalize(query)) && when(filter) {
             "در انتظار" -> !record.reviewed
             "بررسی‌شده در پایش" -> record.reviewed
@@ -166,11 +167,16 @@ fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
             else -> true
         }
     }
+    val records=if(notices && filter=="۲۰ مشاهده‌شده اخیر در ثنا") filtered.filter {record ->
+        val origin=normalize(record.fields.entries.firstOrNull {it.key=="فهرست مبدأ ثنا"}?.value.orEmpty())
+        origin.contains("مشاهده شده")
+    }.sortedByDescending {record -> normalize(record.fields.entries.firstOrNull {it.key.contains("تاریخ صدور")}?.value.orEmpty()).replace('/','-') }.take(20) else filtered
+    val subtitle=if(notices && filter=="۲۰ مشاهده‌شده اخیر در ثنا") "۲۰ مورد آخر از فهرست مشاهده‌شده‌های دریافت‌شده از ثنا؛ دریافت ناقص یا فیلتر تاریخ می‌تواند سابقه را محدود کند" else "جست‌وجو در داده‌های ذخیره‌شده؛ صفر به‌معنای خالی بودن کارتابل ثنا نیست"
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-        item {SectionTitle(if(notices)"ابلاغیه‌ها" else "اطلاع‌رسانی پرونده‌ها","${fa(records.size)} مورد • جست‌وجو در داده واقعی دفتر")}
+        item {SectionTitle(if(notices)"ابلاغیه‌ها" else "اطلاع‌رسانی پرونده‌ها","${fa(records.size)} مورد • $subtitle")}
         item {OutlinedTextField(value=query,onValueChange={query=it},label={Text("شماره، شعبه یا موضوع")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true)}
-        if(notices) item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("همه","در انتظار","تطبیق دقیق","بررسی‌شده در پایش").forEach {label->FilterChip(selected=label==filter,onClick={filter=label},label={Text(label)})}}}
-        if(records.isEmpty()) item {EmptyPanel("موردی پیدا نشد","دریافت اطلاعات، عبارت جست‌وجو و فیلترها را بررسی کنید؛ صفر به معنی خالی بودن کارتابل ثنا نیست.",Icons.Outlined.ManageSearch)}
+        if(notices) item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("همه","در انتظار","تطبیق دقیق","بررسی‌شده در پایش","۲۰ مشاهده‌شده اخیر در ثنا").forEach {label->FilterChip(selected=label==filter,onClick={filter=label},label={Text(label)})}}}
+        if(records.isEmpty()) item {EmptyPanel("موردی پیدا نشد","بررسی کنید که فهرست درست را در ثنا باز کرده و دریافت موفق با تعداد رکوردهای معتبر ثبت شده باشد.",Icons.Outlined.ManageSearch)}
         items(records,key={it.id}) {record->RecordTile(record,data){detail(record)}}
     }
 }
