@@ -21,20 +21,6 @@ await using (var db = new SqliteConnection(connectionString))
 }
 var writeLock = new SemaphoreSlim(1, 1);
 var app = builder.Build();
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["X-Content-Type-Options"] = "nosniff";
-    context.Response.Headers["Cache-Control"] = "no-store";
-    if (context.Request.Path.StartsWithSegments("/v1") && !context.Request.IsHttps &&
-        !string.Equals(context.Connection.RemoteIpAddress?.ToString(), "::1", StringComparison.Ordinal) &&
-        !string.Equals(context.Connection.RemoteIpAddress?.ToString(), "127.0.0.1", StringComparison.Ordinal))
-    {
-        context.Response.StatusCode = StatusCodes.Status400BadRequest;
-        await context.Response.WriteAsJsonAsync(new { error = "https_required" });
-        return;
-    }
-    await next();
-});
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "payesh-sync" }));
 app.MapGet("/v1/sync/workspace", async (HttpContext http) =>
 {
