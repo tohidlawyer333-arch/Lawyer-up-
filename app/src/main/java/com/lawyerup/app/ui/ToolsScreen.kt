@@ -150,11 +150,16 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
                     },modifier=Modifier.weight(1f)) {Text("ذخیره متن در کلیپ‌بورد")}
                     OutlinedButton(onClick={tool="clipboard"},modifier=Modifier.weight(1f)) {Text("کلیپ‌بورد")}
                 }
+                Text("حتی اگر شماره پرونده یا ابلاغیه در سند وجود نداشته باشد، متن به مخزن اسناد برای تحلیل اضافه می‌شود؛ تطبیق با پرونده مشخص فقط با شناسه مستند ممکن است.",style=MaterialTheme.typography.bodySmall)
                 Button(enabled=!busy&&importedText.isNotBlank(),onClick={
                     val record=Extraction.fromDocument(importedText,kind)
-                    if(record==null)model.message.value="شناسه یکتا با عنوان شماره پرونده/ابلاغیه پیدا نشد؛ متن را اصلاح کنید"
-                    else model.perform {model.repository.importRecords(listOf(record));model.message.value="سند بازبینی‌شده ثبت شد؛ متن OCR حفظ شد"}
-                }){Text("متن و شناسه‌ها را تأیید و ثبت می‌کنم")}
+                    val evidence=EvidenceDocument.create("سند OCR",importedText,"local-ocr")
+                    model.perform {
+                        if(record!=null) model.repository.importRecords(listOf(record))
+                        model.repository.saveEvidence(evidence)
+                        model.message.value=if(record==null) "متن سند برای تحلیل ذخیره شد؛ شناسه یکتا از متن احراز نشد" else "متن سند و شناسه مستند ذخیره شد؛ OCR حفظ شد"
+                    }
+                }){Text("ذخیره سند برای تحلیل پرونده")}
             }
             "clipboard" -> {
                 Text("کلیپ‌بورد داخلی",style=MaterialTheme.typography.titleLarge)
