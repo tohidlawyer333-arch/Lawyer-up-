@@ -73,7 +73,7 @@ fun Hero(title:String,subtitle:String,action:(@Composable ()->Unit)?) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
+fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,themeChoice:String="system",onThemeChange:(String)->Unit={}) {
     val context=LocalContext.current
     val data by model.workspace.collectAsState()
     val error by model.storageError.collectAsState()
@@ -82,6 +82,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
     val message by model.message.collectAsState()
     val scope=rememberCoroutineScope()
     var page by rememberSaveable {mutableStateOf("home")}
+    var themeMenu by remember { mutableStateOf(false) }
     var detail by remember {mutableStateOf<CourtRecord?>(null)}
     var task by remember {mutableStateOf<WorkItem?>(null)}
     var portal by remember {mutableStateOf<PortalController?>(null)}
@@ -97,6 +98,14 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
     }
     Scaffold(topBar={TopAppBar(title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
         IconButton(onClick={captureAppWindow(context) { ok -> scope.launch { snack.showSnackbar(if(ok) "تصویر صفحه در گالری ذخیره شد" else "گرفتن تصویر صفحه ناموفق بود") } }}) {Icon(Icons.Outlined.CameraAlt,"گرفتن تصویر صفحه")}
+        Box {
+            IconButton(onClick={themeMenu=true}) {Icon(Icons.Outlined.Palette,"انتخاب پوسته")}
+            DropdownMenu(expanded=themeMenu,onDismissRequest={themeMenu=false}) {
+                listOf("system" to "پیروی از دستگاه", "light" to "روشن", "dark" to "تیره", "blue" to "آبی", "purple" to "بنفش").forEach { (choice,label) ->
+                    DropdownMenuItem(text={Text(if(themeChoice==choice) "✓ $label" else label)},onClick={themeMenu=false;onThemeChange(choice)})
+                }
+            }
+        }
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
     })},snackbarHost={SnackbarHost(snack)},bottomBar={NavigationBar {
