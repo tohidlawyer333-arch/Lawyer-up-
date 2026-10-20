@@ -22,6 +22,7 @@ import com.lawyerup.app.data.BackupCipher
 import com.lawyerup.app.documents.Documents
 import com.lawyerup.app.domain.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -32,12 +33,46 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
     val documents=remember {Documents(context)}
     var tool by rememberSaveable {mutableStateOf("")}
     var importedText by remember {mutableStateOf("")}
+    var deletedText by remember {mutableStateOf("")}
+    var clipboardText by remember {mutableStateOf("")}
+    var textBuffersLoaded by remember {mutableStateOf(false)}
+    var includeEnglish by rememberSaveable {mutableStateOf(false)}
+    var showDeleteClipboardConfirm by remember {mutableStateOf(false)}
     var documentStatus by remember {mutableStateOf("")}
     var kind by remember {mutableStateOf(RecordKind.NOTICE)}
     var password by remember {mutableStateOf("")}
     var pendingBytes by remember {mutableStateOf<ByteArray?>(null)}
     var exportText by remember {mutableStateOf("")}
     val busy by model.busy.collectAsState()
+    LaunchedEffect(Unit) {
+        val stored = withContext(Dispatchers.IO) {
+            listOf(model.repository.readTextBuffer("ocr"), model.repository.readTextBuffer("ocr-undo"), model.repository.readTextBuffer("internal-clipboard"))
+        }
+        importedText=stored[0]
+        deletedText=stored[1]
+        clipboardText=stored[2]
+        textBuffersLoaded=true
+    }
+    LaunchedEffect(importedText,textBuffersLoaded) {
+        if(textBuffersLoaded) { delay(350); runCatching { withContext(Dispatchers.IO) { model.repository.writeTextBuffer("ocr",importedText) } } }
+    }
+    LaunchedEffect(deletedText,textBuffersLoaded) {
+        if(textBuffersLoaded) { delay(350); runCatching { withContext(Dispatchers.IO) { model.repository.writeTextBuffer("ocr-undo",deletedText) } } }
+    }
+    LaunchedEffect(clipboardText,textBuffersLoaded) {
+        if(textBuffersLoaded) { delay(350); runCatching { withContext(Dispatchers.IO) { model.repository.writeTextBuffer("internal-clipboard",clipboardText) } } }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()+Dispatchers.IO).launch {
+                runCatching {
+                    model.repository.writeTextBuffer("ocr",importedText)
+                    model.repository.writeTextBuffer("ocr-undo",deletedText)
+                    model.repository.writeTextBuffer("internal-clipboard",clipboardText)
+                }
+            }
+        }
+    }
     val prefs=remember {context.getSharedPreferences("preferences",0)}
     var reminders by remember {mutableStateOf(prefs.getBoolean("reminders",false))}
     val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {granted->
