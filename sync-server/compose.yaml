@@ -1,0 +1,20 @@
+services:
+  payesh-sync:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_URLS: http://+:8080
+      PAYESH_SYNC_DB: /data/payesh-sync.db
+      PAYESH_SYNC_TOKENS: ${PAYESH_SYNC_TOKENS:?Set PAYESH_SYNC_TOKENS in the deployment environment}
+    ports:
+      - "127.0.0.1:5088:8080"
+    volumes:
+      - payesh-data:/data
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+
+volumes:
+  payesh-data:

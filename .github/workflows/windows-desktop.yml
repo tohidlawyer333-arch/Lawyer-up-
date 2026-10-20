@@ -1,0 +1,75 @@
+name: Payesh Windows desktop
+on:
+  push:
+    branches: ["feature/payesh-windows-sync"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: payesh-windows-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-desktop:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify .NET SDK
+        run: dotnet --version
+      - name: Generate Payesh launcher icon
+        shell: powershell
+        run: .\tools\create-payesh-icon.ps1
+      - name: Build desktop app
+        run: dotnet build desktop/Payesh.Desktop/Payesh.Desktop.csproj -c Release
+      - name: Publish self-contained Windows app
+        run: dotnet publish desktop/Payesh.Desktop/Payesh.Desktop.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o artifacts/publish
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --no-progress -y
+      - name: Build installer
+        shell: powershell
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { $iscc = "$env:ProgramFiles\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DPublishDir=$((Resolve-Path artifacts/publish).Path)" desktop/installer/Payesh.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Payesh-Windows-Installer-x64
+          path: artifacts/installer/Payesh-Setup-x64.exe
+          if-no-files-found: error
+          retention-days: 14
+  sync-server:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify .NET SDK
+        run: dotnet --version
+      - name: Build sync server
+        run: dotnet build sync-server/Payesh.SyncServer/Payesh.SyncServer.csproj -c Release
+      - name: Smoke test authenticated encrypted sync API
+        shell: bash
+        env:
+          PAYESH_SYNC_TOKENS: "ci-user=ci-token-for-tests-12345678901234567890"
+          PAYESH_SYNC_DB: /tmp/payesh-ci.db
+        run: |
+          set -euo pipefail
+          ASPNETCORE_URLS=http://127.0.0.1:5088 dotnet run --no-build -c Release --project sync-server/Payesh.SyncServer/Payesh.SyncServer.csproj >/tmp/payesh-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for i in $(seq 1 30); do curl -fsS http://127.0.0.1:5088/health >/dev/null && break || sleep 1; done
+          curl -fsS http://127.0.0.1:5088/health | grep -q '"ok"'
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5088/v1/sync/workspace)
+          test "$code" = "401"
+          code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer ci-token-for-tests-12345678901234567890' -H 'X-Payesh-User: ci-user' http://127.0.0.1:5088/v1/sync/workspace)
+          test "$code" = "404"
+          payload=$(printf 'PAYESHE1%s' 'this-is-a-test-encrypted-envelope-with-more-than-forty-four-bytes' | base64 -w0)
+          code=$(curl -s -o /tmp/payesh-put.json -w '%{http_code}' -X PUT http://127.0.0.1:5088/v1/sync/workspace -H 'Content-Type: application/json' -H 'Authorization: Bearer ci-token-for-tests-12345678901234567890' -H 'X-Payesh-User: ci-user' --data "{\"expectedRevision\":0,\"payload\":\"$payload\"}")
+          test "$code" = "200"
+          grep -q '"revision":1' /tmp/payesh-put.json
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X PUT http://127.0.0.1:5088/v1/sync/workspace -H 'Content-Type: application/json' -H 'Authorization: Bearer ci-token-for-tests-12345678901234567890' -H 'X-Payesh-User: ci-user' --data "{\"expectedRevision\":0,\"payload\":\"$payload\"}")
+          test "$code" = "409"
+          echo "Sync API smoke tests passed."
