@@ -1,8 +1,24 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 15 * 1024 * 1024);
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("sync", http => RateLimitPartition.GetFixedWindowLimiter(
+        http.Request.Headers["X-Payesh-User"].ToString(),
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
+});
 var tokenConfig = Environment.GetEnvironmentVariable("PAYESH_SYNC_TOKENS") ?? "";
 var tokenMap = tokenConfig.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
     .Select(entry => entry.Split('=', 2))
@@ -21,6 +37,7 @@ await using (var db = new SqliteConnection(connectionString))
 }
 var writeLock = new SemaphoreSlim(1, 1);
 var app = builder.Build();
+app.UseRateLimiter();
 app.MapGet("/health", () => Results.Ok(new { status = "ok", service = "payesh-sync" }));
 app.MapGet("/v1/sync/workspace", async (HttpContext http) =>
 {
@@ -33,7 +50,7 @@ app.MapGet("/v1/sync/workspace", async (HttpContext http) =>
     await using var reader = await cmd.ExecuteReaderAsync();
     if (!await reader.ReadAsync()) return Results.NotFound();
     return Results.Ok(new WorkspaceResponse(reader.GetInt64(0), reader.GetString(1)));
-});
+}).RequireRateLimiting("sync");
 app.MapPut("/v1/sync/workspace", async (HttpContext http, SyncWrite body) =>
 {
     if (!TryUser(http, tokenMap, out var userId)) return Results.Unauthorized();
@@ -79,7 +96,7 @@ app.MapPut("/v1/sync/workspace", async (HttpContext http, SyncWrite body) =>
         return Results.Ok(new WorkspaceResponse(nextRevision, body.Payload));
     }
     finally { writeLock.Release(); }
-});
+}).RequireRateLimiting("sync");
 app.Run();
 
 static bool TryUser(HttpContext context, IReadOnlyDictionary<string, byte[]> tokenMap, out string userId)
