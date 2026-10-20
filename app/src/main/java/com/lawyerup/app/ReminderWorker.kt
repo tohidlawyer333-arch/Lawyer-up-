@@ -23,11 +23,11 @@ class ReminderWorker(context: Context, params: WorkerParameters): CoroutineWorke
             val due=data.tasks.count { !it.done && it.dateConfirmed && runCatching { LocalDate.parse(it.due)<=today.plusDays(3) }.getOrDefault(false) }
             val unreviewed=data.notices.count { !it.reviewed }
             val manager=applicationContext.getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(NotificationChannel("followup","یادآور دفتر",NotificationManager.IMPORTANCE_DEFAULT))
+            manager.createNotificationChannel(NotificationChannel("followup","یادآور پایش",NotificationManager.IMPORTANCE_DEFAULT))
             if((due>0 || unreviewed>0) && (android.os.Build.VERSION.SDK_INT<33 || ContextCompat.checkSelfPermission(applicationContext,Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED)) {
                 val pending=PendingIntent.getActivity(applicationContext,0,Intent(applicationContext,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
                 manager.notify(1001,NotificationCompat.Builder(applicationContext,"followup").setSmallIcon(R.drawable.ic_launcher_foreground)
-                    .setContentTitle("دفتر شما نیازمند بررسی است").setContentText("$due موعد نزدیک یا گذشته؛ $unreviewed ابلاغ بررسی‌نشده. برای تازه‌سازی ثنا برنامه را باز کنید.")
+                    .setContentTitle("پایش: پیگیری‌های دفتر").setContentText("$due موعد نزدیک یا گذشته؛ $unreviewed ابلاغ بررسی‌نشده در پایش. برای تازه‌سازی ثنا برنامه را باز کنید.")
                     .setVisibility(NotificationCompat.VISIBILITY_PRIVATE).setContentIntent(pending).setAutoCancel(true).build())
             }
             Result.success()
