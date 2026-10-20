@@ -132,7 +132,7 @@ fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(Co
             Button(onClick=receive,colors=ButtonDefaults.buttonColors(containerColor=Gold,contentColor=Ink)) {Icon(Icons.Outlined.Sync,null);Spacer(Modifier.width(8.dp));Text("دریافت و تطبیق ثنا")}
         }}
         item {SectionTitle("نمای کلی دفتر","همه اعداد از داده ذخیره‌شده")}
-        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("پرونده دریافت‌شده",data.cases.size,Icons.Outlined.FolderOpen,Modifier.weight(1f)){navigate("cases")};Metric("ابلاغ بررسی‌نشده",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}}}
+        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("پرونده دریافت‌شده",data.cases.size,Icons.Outlined.FolderOpen,Modifier.weight(1f)){navigate("cases")};Metric("بررسی‌نشده در پایش",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}}}
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("موعد نزدیک یا گذشته",near,Icons.Outlined.Event,Modifier.weight(1f)){navigate("tasks")};Metric("تطبیق دقیق شناسه",exact,Icons.Outlined.JoinInner,Modifier.weight(1f)){navigate("notices")}}}
         item {SectionTitle("میز پیگیری","بررسی دستی از نتیجه تطبیق جداست")}
         if(data.notices.isEmpty()) item {EmptyPanel("هیچ ابلاغیه‌ای در پایش ثبت نشده","این وضعیت به‌هیچ‌وجه نشان نمی‌دهد کارتابل ثنا خالی است. تا وقتی گزارش دریافت موفق و تعداد رکوردهای واردشده را بررسی نکرده‌اید، ثنا را مستقلاً کنترل کنید.",Icons.Outlined.Inbox)}
@@ -161,7 +161,7 @@ fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
     val records=(if(notices)data.notices else data.cases).filter {record ->
         normalize(record.text+record.caseNumber+record.noticeNumber).contains(normalize(query)) && when(filter) {
             "در انتظار" -> !record.reviewed
-            "بررسی‌شده" -> record.reviewed
+            "بررسی‌شده در پایش" -> record.reviewed
             "تطبیق دقیق" -> Reconciler.match(record.copy(reviewed=false),data.cases).level in setOf(MatchLevel.EXACT,MatchLevel.ACTION_RECORDED)
             else -> true
         }
@@ -169,7 +169,7 @@ fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {SectionTitle(if(notices)"ابلاغیه‌ها" else "اطلاع‌رسانی پرونده‌ها","${fa(records.size)} مورد • جست‌وجو در داده واقعی دفتر")}
         item {OutlinedTextField(value=query,onValueChange={query=it},label={Text("شماره، شعبه یا موضوع")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true)}
-        if(notices) item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("همه","در انتظار","تطبیق دقیق","بررسی‌شده").forEach {label->FilterChip(selected=label==filter,onClick={filter=label},label={Text(label)})}}}
+        if(notices) item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("همه","در انتظار","تطبیق دقیق","بررسی‌شده در پایش").forEach {label->FilterChip(selected=label==filter,onClick={filter=label},label={Text(label)})}}}
         if(records.isEmpty()) item {EmptyPanel("موردی پیدا نشد","دریافت اطلاعات، عبارت جست‌وجو و فیلترها را بررسی کنید؛ صفر به معنی خالی بودن کارتابل ثنا نیست.",Icons.Outlined.ManageSearch)}
         items(records,key={it.id}) {record->RecordTile(record,data){detail(record)}}
     }
@@ -180,7 +180,12 @@ fun RecordTile(record:CourtRecord,data:Workspace,onClick:()->Unit) {
         Row(verticalAlignment=Alignment.CenterVertically) {Icon(if(record.kind==RecordKind.NOTICE)Icons.Outlined.Description else Icons.Outlined.FolderOpen,null,tint=MaterialTheme.colorScheme.primary);Spacer(Modifier.width(10.dp));Text(record.subject,style=MaterialTheme.typography.titleSmall,maxLines=3)}
         SelectionContainer {Text(fa(record.noticeNumber.ifBlank {record.caseNumber}),style=MaterialTheme.typography.titleMedium)}
         Text(record.fields.entries.firstOrNull {it.key.contains("شعبه")||it.key.contains("صادر کننده")}?.value.orEmpty(),maxLines=2,style=MaterialTheme.typography.bodySmall)
-        if(record.kind==RecordKind.NOTICE) Badge(Reconciler.match(record,data.cases).title) else Badge("ردیف فرعی: ${fa(record.subNumber.ifBlank {"نامشخص"})}")
+        if(record.kind==RecordKind.NOTICE) {
+            val portalList=record.fields.entries.firstOrNull {it.key=="فهرست مبدأ ثنا"}?.value.orEmpty()
+            if(portalList.isNotBlank()) Badge("منبع ثنا: $portalList")
+            Badge("وضعیت داخلی پایش: ${if(record.reviewed)"بررسی‌شده" else "بررسی‌نشده"}")
+            Badge(Reconciler.match(record,data.cases).title)
+        } else Badge("ردیف فرعی: ${fa(record.subNumber.ifBlank {"نامشخص"})}")
         Text("جزئیات و مستندات ←",style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.primary)
     }}
 }
@@ -201,8 +206,8 @@ fun RecordDialog(record:CourtRecord,data:Workspace,onDismiss:()->Unit,onReview:(
             record.evidence.forEach {SelectionContainer {Text(it)}}
             Text("ابلاغ‌های مرتبط: ${fa(data.notices.count {Reconciler.match(it,listOf(record)).caseNumber==record.caseNumber})}")
         }
-    }},confirmButton={if(record.kind==RecordKind.NOTICE) TextButton(onClick={confirm=true}) {Text(if(record.reviewed)"بازگشت به بررسی" else "بررسی کردم")}},dismissButton={TextButton(onClick=onDismiss){Text("بستن")}})
-    if(confirm) AlertDialog(onDismissRequest={confirm=false},title={Text("تأیید تغییر وضعیت محلی؟")},text={Text("این کار فقط علامت بررسی شماست؛ هیچ لایحه یا اقدام قضایی در ثنا ثبت نمی‌کند.")},confirmButton={Button(onClick=onReview){Text("تأیید")}},dismissButton={TextButton(onClick={confirm=false}){Text("انصراف")}})
+    }},confirmButton={if(record.kind==RecordKind.NOTICE) TextButton(onClick={confirm=true}) {Text(if(record.reviewed)"بازگرداندن به بررسی" else "علامت‌گذاری به‌عنوان بررسی‌شده در پایش")}},dismissButton={TextButton(onClick=onDismiss){Text("بستن")}})
+    if(confirm) AlertDialog(onDismissRequest={confirm=false},title={Text("تغییر وضعیت بررسی در پایش؟")},text={Text("این گزینه فقط یادداشت داخلی شما در پایش است و وضعیت مشاهده‌شدن ابلاغیه در ثنا را تغییر نمی‌دهد؛ هیچ اقدامی در سامانه رسمی انجام نمی‌شود.")},confirmButton={Button(onClick=onReview){Text("تأیید")}},dismissButton={TextButton(onClick={confirm=false}){Text("انصراف")}})
 }
 
 @Composable
