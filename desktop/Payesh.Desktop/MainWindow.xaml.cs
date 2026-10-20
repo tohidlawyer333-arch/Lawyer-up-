@@ -72,6 +72,7 @@ public partial class MainWindow : Window
                 var created = await PutWorkspace(client, 0, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
                 _remoteRevision = created.Revision;
                 WorkspaceBox.Text = localText;
+                WorkspaceBox.IsReadOnly = true;
                 await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
                 StatusText.Text = $"فضای کاری به‌صورت رمزگذاری‌شده ارسال شد (نسخه {_remoteRevision}).";
                 return;
