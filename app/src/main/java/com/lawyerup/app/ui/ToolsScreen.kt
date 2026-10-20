@@ -207,7 +207,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
                 ToolButton("قرارداد و محاسبات","چک‌لیست اختیارات و نرخ‌های تأییدشده"){tool="powers"}
                 ToolButton("آماده‌سازی ضمائم","تبدیل تصویر به PDF با سقف حجم"){tool="convert"}
                 ToolButton("مرجع دعاوی و مستندات","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
-                ToolButton("تطبیق متن با مرجع","پیشنهاد کلیدواژه‌ای؛ نه نظر قطعی حقوقی"){navigate("matcher")}
+                ToolButton("تحلیل پرونده","کشف پیوندهای شناسه، تاریخ، مواد قانونی و اسناد ذخیره‌شده"){navigate("matcher")}
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
                 Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر (تقریباً هر ۱۲ ساعت)",Modifier.padding(8.dp))}
                 Text("یادآور پس‌زمینه، داده ذخیره‌شده را بررسی می‌کند؛ بدون نشست معتبر، ورود ثنا یا دریافت جدید را جعل نمی‌کند.",style=MaterialTheme.typography.bodySmall)
