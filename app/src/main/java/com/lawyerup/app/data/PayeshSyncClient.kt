@@ -1,12 +1,10 @@
 package com.lawyerup.app.data
 
-import android.content.Context
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
@@ -22,13 +20,13 @@ object PayeshSyncClient {
     private val aad = "PAYESH-SYNC-V1".toByteArray(StandardCharsets.UTF_8)
     private const val rounds = 600_000
 
-    suspend fun sync(context: Context, repository: WorkspaceRepository, server: String, userId: String, token: String, passphrase: CharArray): String {
+    suspend fun sync(repository: WorkspaceRepository, server: String, userId: String, token: String, passphrase: CharArray): String {
         require(userId.length in 1..100) { "شناسه کاربری معتبر نیست" }
         require(token.length in 24..512) { "توکن دسترسی معتبر نیست" }
         require(passphrase.size >= 12) { "عبارت رمزگذاری حداقل ۱۲ نویسه باشد" }
         val base = server.trim().trimEnd('/')
         val uri = runCatching { URI(base) }.getOrNull() ?: error("نشانی سرویس معتبر نیست")
-        require(uri.scheme == "https" || (uri.scheme == "http" && (uri.host == "localhost" || uri.host == "127.0.0.1"))) {
+        require(uri.scheme == "https") {
             "برای سرویس راه دور HTTPS الزامی است"
         }
         val localText = repository.export()
