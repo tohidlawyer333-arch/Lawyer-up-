@@ -121,7 +121,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                 ToolButton("دریافت از ثنا","نشست رسمی؛ بدون ارسال خودکار",receive)
                 ToolButton("ورود PDF و تصویر","OCR فارسی آفلاین و بازبینی متن"){tool="document"}
                 ToolButton("تقویم و فرصت‌های پیگیری","موعد روزشمار، جلسه اول و ارزیابی شش‌ماهه"){tool="calendar"}
-                ToolButton("مرجع دعاوی LawyerUp","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
+                ToolButton("مرجع دعاوی پایش","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
                 ToolButton("تطبیق متن با مرجع","پیشنهاد کلیدواژه‌ای؛ نه نظر قطعی حقوقی"){navigate("matcher")}
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
                 Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر (تقریباً هر ۱۲ ساعت)",Modifier.padding(8.dp))}
