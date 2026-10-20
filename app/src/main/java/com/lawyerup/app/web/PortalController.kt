@@ -125,7 +125,7 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
                 val imported = withContext(Dispatchers.IO) { repository.ingest(page) }
                 val complete = imported.accepted > 0 && imported.rejected == 0 && !page.truncated && page.blockedFrames == 0
                 SyncReport(complete, 1, imported.accepted, imported.changed,
-                    if(imported.accepted > 0) "${imported.accepted} ردیف معتبر؛ ${imported.changed} تغییر؛ فقط صفحه فعلی${if(!complete) "؛ بخشی از داده دریافت نشده است" else ""}" else "رکورد معتبر پیدا نشد؛ گزارش ساختار را بررسی کنید")
+                    if(imported.accepted > 0) "${imported.accepted} ردیف معتبر؛ ${imported.rejected} ردیف ردشده؛ ${imported.changed} تغییر؛ فقط صفحه فعلی${if(!complete) "؛ دریافت کامل تأیید نشده است" else ""}" else "هیچ رکورد معتبری از صفحه فعلی استخراج نشد؛ این به معنی خالی بودن کارتابل نیست. گزارش ساختار و فیلترهای ثنا را بررسی کنید.", imported.rejected)
             }
         } catch(_: CancellationException) {
             SyncReport(false, 0, 0, 0, "دریافت متوقف شد؛ صفحات ذخیره‌شده باقی می‌مانند")
