@@ -23,6 +23,7 @@ import com.lawyerup.app.documents.Documents
 import com.lawyerup.app.domain.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -64,11 +65,13 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
     }
     DisposableEffect(Unit) {
         onDispose {
-            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()+Dispatchers.IO).launch {
-                runCatching {
-                    model.repository.writeTextBuffer("ocr",importedText)
-                    model.repository.writeTextBuffer("ocr-undo",deletedText)
-                    model.repository.writeTextBuffer("internal-clipboard",clipboardText)
+            if(textBuffersLoaded) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob()+Dispatchers.IO).launch {
+                    runCatching {
+                        model.repository.writeTextBuffer("ocr",importedText)
+                        model.repository.writeTextBuffer("ocr-undo",deletedText)
+                        model.repository.writeTextBuffer("internal-clipboard",clipboardText)
+                    }
                 }
             }
         }
@@ -149,7 +152,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                 Button(enabled=!busy&&importedText.isNotBlank(),onClick={
                     val record=Extraction.fromDocument(importedText,kind)
                     if(record==null)model.message.value="شناسه یکتا با عنوان شماره پرونده/ابلاغیه پیدا نشد؛ متن را اصلاح کنید"
-                    else model.perform {model.repository.importRecords(listOf(record));model.message.value="سند بازبینی‌شده ثبت شد";importedText=""}
+                    else model.perform {model.repository.importRecords(listOf(record));model.message.value="سند بازبینی‌شده ثبت شد؛ متن OCR حفظ شد"}
                 }){Text("متن و شناسه‌ها را تأیید و ثبت می‌کنم")}
             }
             "clipboard" -> {
