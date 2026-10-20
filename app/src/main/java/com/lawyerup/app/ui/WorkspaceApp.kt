@@ -1,10 +1,20 @@
 package com.lawyerup.app.ui
 
 import android.Manifest
+import android.app.Activity
+import android.content.ContentValues
+import android.content.Context
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.view.PixelCopy
+import android.provider.MediaStore
 import android.os.Build
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -26,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.lawyerup.app.*
 import com.lawyerup.app.data.*
+import com.lawyerup.app.notifications.DeadlineReminderScheduler
 import com.lawyerup.app.data.local.AppDatabase
 import com.lawyerup.app.domain.*
 import com.lawyerup.app.ui.screens.*
@@ -39,7 +50,7 @@ import java.time.ZoneId
 fun WelcomeScreen(message:String,onEnter:()->Unit,onSecurity:()->Unit) {
     Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.Center) {
-            Hero("دفتر شما،\nیک قدم جلوتر.","LawyerUp • دستیار پرونده و پیگیری",null)
+            Hero("دفتر شما،\nیک قدم جلوتر.","پایش • دستیار پرونده و پیگیری",null)
             Spacer(Modifier.height(28.dp))
             Text("به دفتر امن خود خوش آمدید",style=MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
@@ -55,7 +66,7 @@ fun WelcomeScreen(message:String,onEnter:()->Unit,onSecurity:()->Unit) {
 @Composable
 fun Hero(title:String,subtitle:String,action:(@Composable ()->Unit)?) {
     Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Ink,Teal)),RoundedCornerShape(28.dp)).padding(24.dp)) {
-        Row(verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Outlined.Balance,null,tint=Gold);Spacer(Modifier.width(10.dp));Text("LAWYERUP / همراه دفتر",color=Color.White.copy(alpha=.8f),style=MaterialTheme.typography.labelMedium)}
+        Row(verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Outlined.Balance,null,tint=Gold);Spacer(Modifier.width(10.dp));Text("پایش / همراه دفتر",color=Color.White.copy(alpha=.8f),style=MaterialTheme.typography.labelMedium)}
         Spacer(Modifier.height(20.dp))
         Text(title,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold,color=Color.White)
         Spacer(Modifier.height(12.dp));Text(subtitle,color=Color(0xFFD9EAE3))
@@ -65,7 +76,7 @@ fun Hero(title:String,subtitle:String,action:(@Composable ()->Unit)?) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
+fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,themeChoice:String="system",onThemeChange:(String)->Unit={}) {
     val context=LocalContext.current
     val data by model.workspace.collectAsState()
     val error by model.storageError.collectAsState()
@@ -74,12 +85,44 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
     val message by model.message.collectAsState()
     val scope=rememberCoroutineScope()
     var page by rememberSaveable {mutableStateOf("home")}
+    var themeMenu by remember { mutableStateOf(false) }
+    var lockMenu by remember { mutableStateOf(false) }
+    val preferences = remember { context.getSharedPreferences("preferences", 0) }
+    var lockTimeout by remember { mutableIntStateOf(preferences.getInt("lock_timeout_ms", 60_000)) }
     var detail by remember {mutableStateOf<CourtRecord?>(null)}
     var task by remember {mutableStateOf<WorkItem?>(null)}
     var portal by remember {mutableStateOf<PortalController?>(null)}
     var claimId by remember {mutableStateOf<Long?>(null)}
     val law=remember {LawRepository(AppDatabase.getInstance(context))}
     val snack=remember {SnackbarHostState()}
+    var remindersEnabled by remember { mutableStateOf(DeadlineReminderScheduler.isEnabled(context)) }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            remindersEnabled = true
+            DeadlineReminderScheduler.setEnabled(context, true)
+            data.tasks.forEach { DeadlineReminderScheduler.schedule(context, it) }
+            scope.launch { snack.showSnackbar("یادآوری موعدهای تأییدشده فعال شد") }
+        } else {
+            remindersEnabled = false
+            DeadlineReminderScheduler.setEnabled(context, false)
+            scope.launch { snack.showSnackbar("مجوز اعلان داده نشد؛ یادآوری‌ها غیرفعال ماند") }
+        }
+    }
+    fun toggleReminders() {
+        if (remindersEnabled) {
+            remindersEnabled = false
+            DeadlineReminderScheduler.setEnabled(context, false)
+            scope.launch { snack.showSnackbar("یادآوری‌ها غیرفعال شد") }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            remindersEnabled = true
+            DeadlineReminderScheduler.setEnabled(context, true)
+            data.tasks.forEach { DeadlineReminderScheduler.schedule(context, it) }
+            scope.launch { snack.showSnackbar("یادآوری موعدهای تأییدشده فعال شد") }
+        }
+    }
     LaunchedEffect(message) {if(message.isNotEmpty()){snack.showSnackbar(message);model.message.value=""}}
     LaunchedEffect(locked) {if(locked) portal?.cancel()}
     DisposableEffect(Unit) {onDispose {portal?.close()}}
@@ -87,8 +130,29 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
         if(portal==null) portal=PortalController(context,model.repository).also {it.open("https://eblagh1.adliran.ir/ENotice/Index")}
         page="portal"
     }
-    Scaffold(topBar={TopAppBar(title={Column {Text("LawyerUp",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
+    Scaffold(topBar={TopAppBar(title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
+        IconButton(onClick={captureAppWindow(context) { ok -> scope.launch { snack.showSnackbar(if(ok) "تصویر صفحه در گالری ذخیره شد" else "گرفتن تصویر صفحه ناموفق بود") } }}) {Icon(Icons.Outlined.CameraAlt,"گرفتن تصویر صفحه")}
+        Box {
+            IconButton(onClick={themeMenu=true}) {Icon(Icons.Outlined.Palette,"انتخاب پوسته")}
+            DropdownMenu(expanded=themeMenu,onDismissRequest={themeMenu=false}) {
+                listOf("system" to "پیروی از دستگاه", "light" to "روشن", "dark" to "تیره", "blue" to "آبی", "purple" to "بنفش").forEach { (choice,label) ->
+                    DropdownMenuItem(text={Text(if(themeChoice==choice) "✓ $label" else label)},onClick={themeMenu=false;onThemeChange(choice)})
+                }
+            }
+        }
+        Box {
+            IconButton(onClick={lockMenu=true}) {Icon(Icons.Outlined.Timer,"تنظیم زمان قفل")}
+            DropdownMenu(expanded=lockMenu,onDismissRequest={lockMenu=false}) {
+                listOf(0 to "قفل فوری", 30_000 to "پس از ۳۰ ثانیه", 60_000 to "پس از ۱ دقیقه", 300_000 to "پس از ۵ دقیقه", -1 to "بدون قفل خودکار").forEach { (timeout,label) ->
+                    DropdownMenuItem(text={Text(if(lockTimeout==timeout) "✓ $label" else label)},onClick={lockTimeout=timeout;preferences.edit().putInt("lock_timeout_ms",timeout).apply();lockMenu=false})
+                }
+            }
+        }
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
+        IconButton(onClick=::toggleReminders) {
+            Icon(Icons.Outlined.NotificationsNone,if(remindersEnabled) "غیرفعال‌کردن یادآوری موعدها" else "فعال‌کردن یادآوری موعدها",
+                tint=if(remindersEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
     })},snackbarHost={SnackbarHost(snack)},bottomBar={NavigationBar {
         listOf(Triple("home","دفتر",Icons.Outlined.SpaceDashboard),Triple("cases","پرونده‌ها",Icons.Outlined.FolderOpen),Triple("notices","ابلاغ‌ها",Icons.Outlined.NotificationsNone),Triple("tasks","پیگیری",Icons.Outlined.TaskAlt),Triple("tools","ابزارها",Icons.Outlined.Widgets)).forEach { (route,label,icon) ->
@@ -124,7 +188,8 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
 
 @Composable
 fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(CourtRecord)->Unit) {
-    val today=LocalDate.now(ZoneId.of("Asia/Tehran"))
+    var today by remember { mutableStateOf(LocalDate.now(ZoneId.of("Asia/Tehran"))) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); today=LocalDate.now(ZoneId.of("Asia/Tehran")) } }
     val near=data.tasks.count {!it.done && it.dateConfirmed && runCatching {LocalDate.parse(it.due)<=today.plusDays(3)}.getOrDefault(false)}
     val exact=data.notices.count {Reconciler.match(it.copy(reviewed=false),data.cases).level in setOf(MatchLevel.EXACT,MatchLevel.ACTION_RECORDED)}
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
@@ -134,11 +199,59 @@ fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(Co
         item {SectionTitle("نمای کلی دفتر","همه اعداد از داده ذخیره‌شده")}
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("پرونده دریافت‌شده",data.cases.size,Icons.Outlined.FolderOpen,Modifier.weight(1f)){navigate("cases")};Metric("ابلاغ بررسی‌نشده",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}}}
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("موعد نزدیک یا گذشته",near,Icons.Outlined.Event,Modifier.weight(1f)){navigate("tasks")};Metric("تطبیق دقیق شناسه",exact,Icons.Outlined.JoinInner,Modifier.weight(1f)){navigate("notices")}}}
+        item {ReadinessPanel(data=data,today=today,onTasks={navigate("tasks")},onNotices={navigate("notices")})}
         item {SectionTitle("میز پیگیری","بررسی دستی از نتیجه تطبیق جداست")}
         if(data.notices.isEmpty()) item {EmptyPanel("دفتر آماده دریافت است","در بخش ثنا، ورود و فهرست موردنظر را باز کنید. فقط اطلاعات قابل‌خواندن همان فهرست دریافت می‌شود.",Icons.Outlined.Inbox)}
         items(data.notices.filter {!it.reviewed}.take(3),key={it.id}) {record->RecordTile(record,data){detail(record)}}
         item {OutlinedButton(onClick={navigate("tasks")},modifier=Modifier.fillMaxWidth()){Text("همه پیگیری‌ها و پیش‌نویس‌ها")}}
         item {Text("تطبیق شناسه، اثبات کفایت حقوقی اقدام نیست. محاسبه موعد نیازمند تاریخ مبنا و تأیید تقویم وکیل است.",style=MaterialTheme.typography.bodySmall)}
+    }
+}
+
+@Composable
+fun ReadinessPanel(data:Workspace,today:LocalDate,onTasks:()->Unit,onNotices:()->Unit) {
+    val openNotices=data.notices.count {!it.reviewed}
+    val overdue=data.tasks.count { task ->
+        !task.done && task.dateConfirmed && runCatching { LocalDate.parse(task.due).isBefore(today) }.getOrDefault(false)
+    }
+    val dueSoon=data.tasks.count { task ->
+        !task.done && task.dateConfirmed && runCatching {
+            val date=LocalDate.parse(task.due)
+            !date.isBefore(today) && !date.isAfter(today.plusDays(3))
+        }.getOrDefault(false)
+    }
+    val dateUnconfirmed=data.tasks.count {!it.done && !it.dateConfirmed}
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Shield,null,tint=MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("گزارش آمادگی دفتر",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+                    Text("شاخص اولیه بر پایه اطلاعات ثبت‌شده",style=MaterialTheme.typography.bodySmall)
+                }
+            }
+            ReadinessLine("ابلاغ بررسی‌نشده",openNotices,if(openNotices>0) "بررسی و تعیین اقدام" else "مورد باز ثبت نشده")
+            ReadinessLine("پیگیری‌های عقب‌افتاده",overdue,if(overdue>0) "فوراً تاریخ و اقدام را کنترل کنید" else "مورد عقب‌افتاده ثبت‌شده نیست")
+            ReadinessLine("پیگیری با تاریخ تأییدنشده",dateUnconfirmed,if(dateUnconfirmed>0) "تاریخ مبنا را دستی بررسی کنید" else "تاریخ تأییدنشده‌ای ثبت نشده")
+            ReadinessLine("پیگیری موعد سه روز آینده",dueSoon,if(dueSoon>0) "تقویم وکیل را کنترل کنید" else "موعد نزدیک ثبت‌شده‌ای نیست")
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick=onNotices,modifier=Modifier.weight(1f)) {Text("بررسی ابلاغ‌ها")}
+                OutlinedButton(onClick=onTasks,modifier=Modifier.weight(1f)) {Text("بررسی پیگیری‌ها")}
+            }
+            Text("این گزارش فقط داده‌های موجود در پایش را می‌سنجد؛ نبود مورد در این فهرست به معنی نبود خطر حقوقی نیست. مهلت قانونی باید مستقل و توسط وکیل تأیید شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ReadinessLine(label:String,count:Int,hint:String) {
+    Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Text(fa(count),style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold,modifier=Modifier.width(28.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label,style=MaterialTheme.typography.bodyMedium,fontWeight=FontWeight.Medium)
+            Text(hint,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
@@ -297,4 +410,53 @@ fun HealthScreen(data:Workspace,controller:PortalController?,receive:()->Unit) {
         item {Text("گزارش بدون رمز، کوکی و مقدار ردیف‌ها",style=MaterialTheme.typography.titleMedium)}
         item {SelectionContainer {Text(controller?.diagnostic()?:"نشستی وجود ندارد",style=MaterialTheme.typography.bodySmall)}}
     }
+}
+
+
+/** Captures only the app window after the user taps the camera button. */
+private fun captureAppWindow(context: Context, onResult: (Boolean) -> Unit) {
+    val activity = context as? Activity
+    if (activity == null || activity.isFinishing) { onResult(false); return }
+    val view = activity.window.decorView
+    val width = view.width
+    val height = view.height
+    if (width <= 0 || height <= 0) { onResult(false); return }
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    PixelCopy.request(activity.window, bitmap, { result ->
+        if (result != PixelCopy.SUCCESS) {
+            bitmap.recycle()
+            onResult(false)
+            return@request
+        }
+        Thread {
+            var saved = false
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, "Payesh-${System.currentTimeMillis()}.png")
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Payesh")
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                }
+                val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: throw IllegalStateException("Could not create image")
+                context.contentResolver.openOutputStream(uri)?.use { output ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        throw IllegalStateException("Could not encode image")
+                    }
+                } ?: throw IllegalStateException("Could not open image output")
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    val ready = ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }
+                    context.contentResolver.update(uri, ready, null, null)
+                }
+                saved = true
+            } catch (_: Exception) {
+                saved = false
+            } finally {
+                bitmap.recycle()
+                Handler(Looper.getMainLooper()).post { onResult(saved) }
+            }
+        }.start()
+    }, Handler(Looper.getMainLooper()))
 }

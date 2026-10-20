@@ -17,7 +17,8 @@ private val light=lightColorScheme(primary=Teal,onPrimary=Color.White,secondary=
 private val dark=darkColorScheme(primary=Color(0xFF78D8CB),secondary=Gold,tertiary=Color(0xFFCABDFF),background=Color(0xFF102327),surface=Color(0xFF193236),surfaceVariant=Color(0xFF274448))
 
 @Composable
-fun LawyerUpTheme(darkTheme:Boolean=isSystemInDarkTheme(),content:@Composable ()->Unit) {
+fun LawyerUpTheme(themeChoice:String="system",content:@Composable ()->Unit) {
+    val darkTheme = when(themeChoice) { "dark" -> true; "light", "blue", "purple" -> false; else -> isSystemInDarkTheme() }
     val font=FontFamily(Font(R.font.vazirmatn))
     val base=Typography()
     val typography=Typography(
@@ -25,5 +26,11 @@ fun LawyerUpTheme(darkTheme:Boolean=isSystemInDarkTheme(),content:@Composable ()
         titleLarge=base.titleLarge.copy(fontFamily=font),titleMedium=base.titleMedium.copy(fontFamily=font),titleSmall=base.titleSmall.copy(fontFamily=font),
         bodyLarge=base.bodyLarge.copy(fontFamily=font),bodyMedium=base.bodyMedium.copy(fontFamily=font),bodySmall=base.bodySmall.copy(fontFamily=font),
         labelLarge=base.labelLarge.copy(fontFamily=font),labelMedium=base.labelMedium.copy(fontFamily=font),labelSmall=base.labelSmall.copy(fontFamily=font))
-    MaterialTheme(colorScheme=if(darkTheme)dark else light,typography=typography,shapes=Shapes(small=RoundedCornerShape(12.dp),medium=RoundedCornerShape(20.dp),large=RoundedCornerShape(28.dp)),content=content)
+    val baseScheme = if(darkTheme) dark else light
+    val scheme = when(themeChoice) {
+        "blue" -> baseScheme.copy(primary=Color(0xFF2457A6), secondary=Color(0xFF6C8FCB), tertiary=Color(0xFF2D7D8C))
+        "purple" -> baseScheme.copy(primary=if(darkTheme) Color(0xFFD0BCFF) else Color(0xFF6750A4), secondary=Color(0xFF80669D), tertiary=Color(0xFF8A6D3B))
+        else -> baseScheme
+    }
+    MaterialTheme(colorScheme=scheme,typography=typography,shapes=Shapes(small=RoundedCornerShape(12.dp),medium=RoundedCornerShape(20.dp),large=RoundedCornerShape(28.dp)),content=content)
 }
