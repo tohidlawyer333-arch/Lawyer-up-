@@ -55,7 +55,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
     val optimize=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) model.perform {
         val bytes=documents.optimize(uri,normalize(limit).toInt())
         pendingBytes=bytes
-        withContext(Dispatchers.Main) {savePdf.launch("LawyerUp-attachment.pdf")}
+        withContext(Dispatchers.Main) {savePdf.launch("Payesh-attachment.pdf")}
     }}
     val saveBackup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) {uri->
         if(uri!=null) {
@@ -114,15 +114,13 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                 Text("پشتیبان رمزگذاری‌شده",style=MaterialTheme.typography.titleLarge)
                 Text("عبارت حداقل ۱۲ نویسه؛ فراموشی آن قابل بازیابی نیست. پشتیبان شامل پرونده، ابلاغ، پیگیری و پیش‌نویس است؛ رمز ثنا و نشست در آن نیست.")
                 OutlinedTextField(password,{password=it},label={Text("عبارت محرمانه پشتیبان")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
-                Button(enabled=password.length>=12&&!busy,onClick={saveBackup.launch("LawyerUp-backup.lup")}){Text("انتخاب محل و ذخیره پشتیبان")}
+                Button(enabled=password.length>=12&&!busy,onClick={saveBackup.launch("Payesh-backup.lup")}){Text("انتخاب محل و ذخیره پشتیبان")}
                 OutlinedButton(enabled=password.length>=12&&!busy,onClick={restoreBackup.launch(arrayOf("*/*"))}){Text("انتخاب پشتیبان و ادغام با دفتر")}
             }
             else -> {
                 ToolButton("دریافت از ثنا","نشست رسمی؛ بدون ارسال خودکار",receive)
                 ToolButton("ورود PDF و تصویر","OCR فارسی آفلاین و بازبینی متن"){tool="document"}
                 ToolButton("تقویم و فرصت‌های پیگیری","موعد روزشمار، جلسه اول و ارزیابی شش‌ماهه"){tool="calendar"}
-                ToolButton("قرارداد و محاسبات","چک‌لیست اختیارات و نرخ‌های تأییدشده"){tool="powers"}
-                ToolButton("آماده‌سازی ضمائم","تبدیل تصویر به PDF با سقف حجم"){tool="convert"}
                 ToolButton("مرجع دعاوی LawyerUp","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
                 ToolButton("تطبیق متن با مرجع","پیشنهاد کلیدواژه‌ای؛ نه نظر قطعی حقوقی"){navigate("matcher")}
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
