@@ -24,17 +24,10 @@ import kotlin.coroutines.coroutineContext
 data class DocumentText(val text: String, val usedOcr: Boolean, val pages: Int)
 
 class Documents(private val context: Context) {
-    private val maxBytes = 25 * 1024 * 1024
     private fun input(uri: Uri): ByteArray = context.contentResolver.openInputStream(uri)!!.use { stream ->
-        val bytes = stream.readBytesLimited(maxBytes)
+        val bytes = stream.readBytes()
         require(bytes.isNotEmpty()) { "فایل خالی است" }
         bytes
-    }
-    private fun java.io.InputStream.readBytesLimited(limit: Int): ByteArray {
-        val output = ByteArrayOutputStream()
-        val buffer = ByteArray(8192)
-        while(true) { val count=read(buffer); if(count<0) break; require(output.size()+count<=limit) { "سقف فایل ۲۵ مگابایت است" }; output.write(buffer,0,count) }
-        return output.toByteArray()
     }
     private fun image(bytes: ByteArray): Bitmap {
         val dimensions = BitmapFactory.Options().apply { inJustDecodeBounds = true }
