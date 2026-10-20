@@ -39,7 +39,7 @@ import java.time.ZoneId
 fun WelcomeScreen(message:String,onEnter:()->Unit,onSecurity:()->Unit) {
     Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.Center) {
-            Hero("دفتر شما،\nیک قدم جلوتر.","LawyerUp • دستیار پرونده و پیگیری",null)
+            Hero("دفتر شما،\nیک قدم جلوتر.","پایش • دستیار پرونده و پیگیری",null)
             Spacer(Modifier.height(28.dp))
             Text("به دفتر امن خود خوش آمدید",style=MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
@@ -54,18 +54,18 @@ fun WelcomeScreen(message:String,onEnter:()->Unit,onSecurity:()->Unit) {
 
 @Composable
 fun Hero(title:String,subtitle:String,action:(@Composable ()->Unit)?) {
-    Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Ink,Teal)),RoundedCornerShape(28.dp)).padding(24.dp)) {
-        Row(verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Outlined.Balance,null,tint=Gold);Spacer(Modifier.width(10.dp));Text("LAWYERUP / همراه دفتر",color=Color.White.copy(alpha=.8f),style=MaterialTheme.typography.labelMedium)}
+    Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary,MaterialTheme.colorScheme.tertiary)),RoundedCornerShape(28.dp)).padding(24.dp)) {
+        Row(verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Outlined.Balance,null,tint=MaterialTheme.colorScheme.secondary);Spacer(Modifier.width(10.dp));Text("پایش / همراه دفتر",color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.82f),style=MaterialTheme.typography.labelMedium)}
         Spacer(Modifier.height(20.dp))
-        Text(title,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold,color=Color.White)
-        Spacer(Modifier.height(12.dp));Text(subtitle,color=Color(0xFFD9EAE3))
+        Text(title,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold,color=MaterialTheme.colorScheme.onPrimary)
+        Spacer(Modifier.height(12.dp));Text(subtitle,color=MaterialTheme.colorScheme.onPrimary.copy(alpha=.90f))
         action?.let {Spacer(Modifier.height(18.dp));it()}
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
+fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,themeChoice:String="teal",onThemeChange:(String)->Unit={}) {
     val context=LocalContext.current
     val data by model.workspace.collectAsState()
     val error by model.storageError.collectAsState()
@@ -87,7 +87,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
         if(portal==null) portal=PortalController(context,model.repository).also {it.open("https://eblagh1.adliran.ir/ENotice/Index")}
         page="portal"
     }
-    Scaffold(topBar={TopAppBar(title={Column {Text("LawyerUp",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
+    Scaffold(topBar={TopAppBar(title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
     })},snackbarHost={SnackbarHost(snack)},bottomBar={NavigationBar {
@@ -107,7 +107,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
                 "health" -> HealthScreen(data,portal,::openPortal)
                 "library" -> if(claimId==null) ClaimsListScreen(law){claimId=it} else Column {TextButton(onClick={claimId=null}){Text("بازگشت به مرجع")};AuthorityDetailScreen(law,claimId!!)}
                 "matcher" -> CaseMatcherScreen(law)
-                else -> ToolsScreen(model,{page=it},::openPortal)
+                else -> ToolsScreen(model,{page=it},::openPortal,themeChoice,onThemeChange)
             }
             if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
         }
@@ -129,7 +129,7 @@ fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(Co
     val exact=data.notices.count {Reconciler.match(it.copy(reviewed=false),data.cases).level in setOf(MatchLevel.EXACT,MatchLevel.ACTION_RECORDED)}
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item {Hero("پرونده‌ها روشن‌تر،\nپیگیری‌ها منظم‌تر.","${fa(PersianDates.display(today))} • اطلاعات دفتر، یک‌جا و امن") {
-            Button(onClick=receive,colors=ButtonDefaults.buttonColors(containerColor=Gold,contentColor=Ink)) {Icon(Icons.Outlined.Sync,null);Spacer(Modifier.width(8.dp));Text("دریافت و تطبیق ثنا")}
+            Button(onClick=receive,colors=ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.secondaryContainer,contentColor=MaterialTheme.colorScheme.onSecondaryContainer)) {Icon(Icons.Outlined.Sync,null);Spacer(Modifier.width(8.dp));Text("دریافت و تطبیق ثنا")}
         }}
         item {SectionTitle("نمای کلی دفتر","همه اعداد از داده ذخیره‌شده")}
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("پرونده دریافت‌شده",data.cases.size,Icons.Outlined.FolderOpen,Modifier.weight(1f)){navigate("cases")};Metric("بررسی‌نشده در پایش",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}}}
