@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,7 +25,6 @@ class MainActivity: ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent {
             LawyerUpTheme {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -42,11 +40,7 @@ class MainActivity: ComponentActivity() {
     private fun authenticate() {
         val manager=getSystemService(KeyguardManager::class.java)
         if(!manager.isDeviceSecure) {gateMessage="برای حفاظت از پرونده‌ها، ابتدا قفل صفحه دستگاه را فعال کنید";return}
-        val intent=manager.createConfirmDeviceCredentialIntent("ورود به LawyerUp","قفل دستگاه را برای دسترسی به دفتر تأیید کنید")
+        val intent=manager.createConfirmDeviceCredentialIntent("ورود به پایش","قفل دستگاه را برای دسترسی به پایش تأیید کنید")
         if(intent!=null) authentication.launch(intent) else gateMessage="احراز هویت دستگاه در دسترس نیست"
-    }
-    override fun onStop() {
-        super.onStop()
-        if(!isChangingConfigurations) unlocked=false
     }
 }
