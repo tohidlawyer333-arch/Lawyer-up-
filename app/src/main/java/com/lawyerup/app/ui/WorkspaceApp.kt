@@ -1,6 +1,14 @@
 package com.lawyerup.app.ui
 
 import android.Manifest
+import android.app.Activity
+import android.content.ContentValues
+import android.content.Context
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.view.PixelCopy
+import android.provider.MediaStore
 import android.os.Build
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -88,6 +96,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
         page="portal"
     }
     Scaffold(topBar={TopAppBar(title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
+        IconButton(onClick={captureAppWindow(context) { ok -> scope.launch { snack.showSnackbar(if(ok) "تصویر صفحه در گالری ذخیره شد" else "گرفتن تصویر صفحه ناموفق بود") } }}) {Icon(Icons.Outlined.CameraAlt,"گرفتن تصویر صفحه")}
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
     })},snackbarHost={SnackbarHost(snack)},bottomBar={NavigationBar {
@@ -124,7 +133,8 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
 
 @Composable
 fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(CourtRecord)->Unit) {
-    val today=LocalDate.now(ZoneId.of("Asia/Tehran"))
+    var today by remember { mutableStateOf(LocalDate.now(ZoneId.of("Asia/Tehran"))) }
+    LaunchedEffect(Unit) { while (true) { kotlinx.coroutines.delay(60_000); today=LocalDate.now(ZoneId.of("Asia/Tehran")) } }
     val near=data.tasks.count {!it.done && it.dateConfirmed && runCatching {LocalDate.parse(it.due)<=today.plusDays(3)}.getOrDefault(false)}
     val exact=data.notices.count {Reconciler.match(it.copy(reviewed=false),data.cases).level in setOf(MatchLevel.EXACT,MatchLevel.ACTION_RECORDED)}
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
@@ -297,4 +307,53 @@ fun HealthScreen(data:Workspace,controller:PortalController?,receive:()->Unit) {
         item {Text("گزارش بدون رمز، کوکی و مقدار ردیف‌ها",style=MaterialTheme.typography.titleMedium)}
         item {SelectionContainer {Text(controller?.diagnostic()?:"نشستی وجود ندارد",style=MaterialTheme.typography.bodySmall)}}
     }
+}
+
+
+/** Captures only the app window after the user taps the camera button. */
+private fun captureAppWindow(context: Context, onResult: (Boolean) -> Unit) {
+    val activity = context as? Activity
+    if (activity == null || activity.isFinishing) { onResult(false); return }
+    val view = activity.window.decorView
+    val width = view.width
+    val height = view.height
+    if (width <= 0 || height <= 0) { onResult(false); return }
+    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    PixelCopy.request(activity.window, bitmap, { result ->
+        if (result != PixelCopy.SUCCESS) {
+            bitmap.recycle()
+            onResult(false)
+            return@request
+        }
+        Thread {
+            var saved = false
+            try {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, "Payesh-${System.currentTimeMillis()}.png")
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/png")
+                    if (android.os.Build.VERSION.SDK_INT >= 29) {
+                        put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Payesh")
+                        put(MediaStore.Images.Media.IS_PENDING, 1)
+                    }
+                }
+                val uri = context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                    ?: throw IllegalStateException("Could not create image")
+                context.contentResolver.openOutputStream(uri)?.use { output ->
+                    if (!bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                        throw IllegalStateException("Could not encode image")
+                    }
+                } ?: throw IllegalStateException("Could not open image output")
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    val ready = ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING, 0) }
+                    context.contentResolver.update(uri, ready, null, null)
+                }
+                saved = true
+            } catch (_: Exception) {
+                saved = false
+            } finally {
+                bitmap.recycle()
+                Handler(Looper.getMainLooper()).post { onResult(saved) }
+            }
+        }.start()
+    }, Handler(Looper.getMainLooper()))
 }
