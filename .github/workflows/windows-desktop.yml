@@ -16,9 +16,8 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-      - uses: actions/setup-dotnet@d4c94342e560b34958eacfc5d055d21461ed1c5c
-        with:
-          dotnet-version: 8.0.x
+      - name: Verify .NET SDK
+        run: dotnet --version
       - name: Generate Payesh launcher icon
         shell: powershell
         run: .\tools\create-payesh-icon.ps1
