@@ -65,6 +65,19 @@
     }
   }
   inspect(document);
+  // Source evidence only: the list heading describes the portal view, not the lawyer's local review.
+  const headings = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading],.nav-link.active,.active')]
+    .filter(visible).map(text);
+  const noticeHeading = headings.find(value =>
+    /ابلاغیه/.test(value) && /(مشاهده[\s\u200c]*شده|مشاهده[\s\u200c]*نشده|باز[\s\u200c]*نشده|جدید)/.test(value));
+  if(noticeHeading) {
+    for(const row of result.rows) {
+      if(row.headers && row.headers.some(header=>/شماره\s*ابلاغ/.test(header)) && !row.headers.includes('فهرست مبدأ ثنا')) {
+        row.headers.push('فهرست مبدأ ثنا');
+        row.cells.push(noticeHeading);
+      }
+    }
+  }
   const details = result.rows.filter(row => row.context && row.headers.some(header=>/شماره\s*پرونده/.test(header)));
   if(details.length === 1) {
     const context = details[0];
