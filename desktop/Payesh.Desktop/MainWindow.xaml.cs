@@ -87,6 +87,8 @@ public partial class MainWindow : Window
 
             if (string.IsNullOrWhiteSpace(localText) && File.Exists(LocalFile))
                 localText = Encoding.UTF8.GetString(Decrypt(await File.ReadAllBytesAsync(LocalFile), pass));
+            if (!string.IsNullOrWhiteSpace(localText) && !IsPayeshWorkspace(localText))
+                throw new InvalidDataException("نسخه محلی قالب رسمی دفتر پایش نیست؛ هیچ داده‌ای ارسال یا بازنویسی نشد.");
 
             if (string.IsNullOrWhiteSpace(localText))
             {
