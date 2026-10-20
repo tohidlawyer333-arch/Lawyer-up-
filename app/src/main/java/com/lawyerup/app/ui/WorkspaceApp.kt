@@ -83,6 +83,9 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
     val scope=rememberCoroutineScope()
     var page by rememberSaveable {mutableStateOf("home")}
     var themeMenu by remember { mutableStateOf(false) }
+    var lockMenu by remember { mutableStateOf(false) }
+    val preferences = remember { context.getSharedPreferences("preferences", 0) }
+    var lockTimeout by remember { mutableIntStateOf(preferences.getInt("lock_timeout_ms", 60_000)) }
     var detail by remember {mutableStateOf<CourtRecord?>(null)}
     var task by remember {mutableStateOf<WorkItem?>(null)}
     var portal by remember {mutableStateOf<PortalController?>(null)}
@@ -103,6 +106,14 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
             DropdownMenu(expanded=themeMenu,onDismissRequest={themeMenu=false}) {
                 listOf("system" to "پیروی از دستگاه", "light" to "روشن", "dark" to "تیره", "blue" to "آبی", "purple" to "بنفش").forEach { (choice,label) ->
                     DropdownMenuItem(text={Text(if(themeChoice==choice) "✓ $label" else label)},onClick={themeMenu=false;onThemeChange(choice)})
+                }
+            }
+        }
+        Box {
+            IconButton(onClick={lockMenu=true}) {Icon(Icons.Outlined.Timer,"تنظیم زمان قفل")}
+            DropdownMenu(expanded=lockMenu,onDismissRequest={lockMenu=false}) {
+                listOf(0 to "قفل فوری", 30_000 to "پس از ۳۰ ثانیه", 60_000 to "پس از ۱ دقیقه", 300_000 to "پس از ۵ دقیقه", -1 to "بدون قفل خودکار").forEach { (timeout,label) ->
+                    DropdownMenuItem(text={Text(if(lockTimeout==timeout) "✓ $label" else label)},onClick={lockTimeout=timeout;preferences.edit().putInt("lock_timeout_ms",timeout).apply();lockMenu=false})
                 }
             }
         }
