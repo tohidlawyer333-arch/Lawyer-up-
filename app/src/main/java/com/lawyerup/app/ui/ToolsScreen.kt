@@ -39,6 +39,11 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
     var exportText by remember {mutableStateOf("")}
     val busy by model.busy.collectAsState()
     val prefs=remember {context.getSharedPreferences("preferences",0)}
+    var syncUrl by rememberSaveable {mutableStateOf(prefs.getString("sync_server_url","") ?: "")}
+    var syncUser by rememberSaveable {mutableStateOf(prefs.getString("sync_user","") ?: "")}
+    var syncToken by rememberSaveable {mutableStateOf("")}
+    var syncPhrase by rememberSaveable {mutableStateOf("")}
+    var syncStatus by remember {mutableStateOf("")}
     var reminders by remember {mutableStateOf(prefs.getBoolean("reminders",false))}
     val notificationPermission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {granted->
         if(!granted) model.message.value="اعلان‌ها مجاز نیستند؛ پیگیری‌ها در برنامه باقی می‌مانند"
@@ -110,6 +115,33 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
             }
             "calendar" -> CalendarTool {task->model.save(task)}
             "powers" -> ContractTool {text->exportText=text;saveText.launch("LawyerUp-contract-checklist.txt")}
+            "sync" -> {
+                Text("همگام‌سازی رمزگذاری‌شده بین دستگاه‌ها",style=MaterialTheme.typography.titleLarge)
+                Text("سرویس باید قبلاً روی میزبان امن با HTTPS راه‌اندازی شده باشد. محتوای دفتر قبل از ارسال با رمزگذاری سمت دستگاه محافظت می‌شود؛ عبارت رمزگذاری روی سرور ارسال نمی‌شود.")
+                OutlinedTextField(syncUrl,{syncUrl=it},label={Text("نشانی سرویس HTTPS")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(syncUser,{syncUser=it},label={Text("شناسه کاربری تعریف‌شده روی سرویس")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(syncToken,{syncToken=it},label={Text("توکن دسترسی (ذخیره نمی‌شود)")},modifier=Modifier.fillMaxWidth(),singleLine=true)
+                OutlinedTextField(syncPhrase,{syncPhrase=it},label={Text("عبارت رمزگذاری مشترک با ویندوز")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth(),singleLine=true)
+                Button(enabled=!busy&&syncUrl.isNotBlank()&&syncUser.isNotBlank()&&syncToken.length>=24&&syncPhrase.length>=12,onClick={
+                    val token=syncToken.trim()
+                    val phrase=syncPhrase.toCharArray()
+                    prefs.edit().putString("sync_server_url",syncUrl.trim()).putString("sync_user",syncUser.trim()).apply()
+                    syncStatus="در حال همگام‌سازی…"
+                    model.perform {
+                        try {
+                            syncStatus=PayeshSyncClient.sync(context,model.repository,syncUrl.trim(),syncUser.trim(),token,phrase)
+                            model.message.value=syncStatus
+                        } catch(error:Exception) {
+                            syncStatus=error.message?.take(180) ?: "همگام‌سازی ناموفق بود"
+                            model.message.value=syncStatus
+                        } finally {
+                            phrase.fill('\\u0000')
+                        }
+                    }
+                }) { Text("همگام‌سازی امن") }
+                Text(syncStatus)
+                Text("توکن و عبارت رمزگذاری در تنظیمات ذخیره نمی‌شوند. نسخه‌های متعارض به‌صورت خودکار بازنویسی نمی‌شوند؛ پیش از استفاده عملیاتی، سرویس باید ممیزی و آزمون بازیابی شود.",style=MaterialTheme.typography.bodySmall)
+            }
             "backup" -> {
                 Text("پشتیبان رمزگذاری‌شده",style=MaterialTheme.typography.titleLarge)
                 Text("عبارت حداقل ۱۲ نویسه؛ فراموشی آن قابل بازیابی نیست. پشتیبان شامل پرونده، ابلاغ، پیگیری و پیش‌نویس است؛ رمز ثنا و نشست در آن نیست.")
@@ -124,6 +156,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                 ToolButton("مرجع دعاوی پایش","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
                 ToolButton("تطبیق متن با مرجع","پیشنهاد کلیدواژه‌ای؛ نه نظر قطعی حقوقی"){navigate("matcher")}
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
+                ToolButton("همگام‌سازی امن موبایل و ویندوز","رمزگذاری سمت دستگاه؛ نیازمند سرویس میزبانی‌شده"){tool="sync"}
                 Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر (تقریباً هر ۱۲ ساعت)",Modifier.padding(8.dp))}
                 Text("یادآور پس‌زمینه، داده ذخیره‌شده را بررسی می‌کند؛ بدون نشست معتبر، ورود ثنا یا دریافت جدید را جعل نمی‌کند.",style=MaterialTheme.typography.bodySmall)
                 Text("نسخه ۲.۰.۰ • داده‌ها محلی و رمزگذاری‌شده • هیچ ارسال قضایی خودکار انجام نمی‌شود",style=MaterialTheme.typography.labelSmall)
