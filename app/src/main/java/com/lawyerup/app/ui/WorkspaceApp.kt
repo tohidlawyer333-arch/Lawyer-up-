@@ -164,11 +164,59 @@ fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(Co
         item {SectionTitle("نمای کلی دفتر","همه اعداد از داده ذخیره‌شده")}
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("پرونده دریافت‌شده",data.cases.size,Icons.Outlined.FolderOpen,Modifier.weight(1f)){navigate("cases")};Metric("ابلاغ بررسی‌نشده",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}}}
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("موعد نزدیک یا گذشته",near,Icons.Outlined.Event,Modifier.weight(1f)){navigate("tasks")};Metric("تطبیق دقیق شناسه",exact,Icons.Outlined.JoinInner,Modifier.weight(1f)){navigate("notices")}}}
+        item {ReadinessPanel(data=data,today=today,onTasks={navigate("tasks")},onNotices={navigate("notices")})}
         item {SectionTitle("میز پیگیری","بررسی دستی از نتیجه تطبیق جداست")}
         if(data.notices.isEmpty()) item {EmptyPanel("دفتر آماده دریافت است","در بخش ثنا، ورود و فهرست موردنظر را باز کنید. فقط اطلاعات قابل‌خواندن همان فهرست دریافت می‌شود.",Icons.Outlined.Inbox)}
         items(data.notices.filter {!it.reviewed}.take(3),key={it.id}) {record->RecordTile(record,data){detail(record)}}
         item {OutlinedButton(onClick={navigate("tasks")},modifier=Modifier.fillMaxWidth()){Text("همه پیگیری‌ها و پیش‌نویس‌ها")}}
         item {Text("تطبیق شناسه، اثبات کفایت حقوقی اقدام نیست. محاسبه موعد نیازمند تاریخ مبنا و تأیید تقویم وکیل است.",style=MaterialTheme.typography.bodySmall)}
+    }
+}
+
+@Composable
+fun ReadinessPanel(data:Workspace,today:LocalDate,onTasks:()->Unit,onNotices:()->Unit) {
+    val openNotices=data.notices.count {!it.reviewed}
+    val overdue=data.tasks.count { task ->
+        !task.done && task.dateConfirmed && runCatching { LocalDate.parse(task.due).isBefore(today) }.getOrDefault(false)
+    }
+    val dueSoon=data.tasks.count { task ->
+        !task.done && task.dateConfirmed && runCatching {
+            val date=LocalDate.parse(task.due)
+            !date.isBefore(today) && !date.isAfter(today.plusDays(3))
+        }.getOrDefault(false)
+    }
+    val dateUnconfirmed=data.tasks.count {!it.done && !it.dateConfirmed}
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment=Alignment.CenterVertically) {
+                Icon(Icons.Outlined.Shield,null,tint=MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("گزارش آمادگی دفتر",style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold)
+                    Text("شاخص اولیه بر پایه اطلاعات ثبت‌شده",style=MaterialTheme.typography.bodySmall)
+                }
+            }
+            ReadinessLine("ابلاغ بررسی‌نشده",openNotices,if(openNotices>0) "بررسی و تعیین اقدام" else "مورد باز ثبت نشده")
+            ReadinessLine("پیگیری‌های عقب‌افتاده",overdue,if(overdue>0) "فوراً تاریخ و اقدام را کنترل کنید" else "مورد عقب‌افتاده ثبت‌شده نیست")
+            ReadinessLine("پیگیری با تاریخ تأییدنشده",dateUnconfirmed,if(dateUnconfirmed>0) "تاریخ مبنا را دستی بررسی کنید" else "تاریخ تأییدنشده‌ای ثبت نشده")
+            ReadinessLine("پیگیری موعد سه روز آینده",dueSoon,if(dueSoon>0) "تقویم وکیل را کنترل کنید" else "موعد نزدیک ثبت‌شده‌ای نیست")
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick=onNotices,modifier=Modifier.weight(1f)) {Text("بررسی ابلاغ‌ها")}
+                OutlinedButton(onClick=onTasks,modifier=Modifier.weight(1f)) {Text("بررسی پیگیری‌ها")}
+            }
+            Text("این گزارش فقط داده‌های موجود در پایش را می‌سنجد؛ نبود مورد در این فهرست به معنی نبود خطر حقوقی نیست. مهلت قانونی باید مستقل و توسط وکیل تأیید شود.",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun ReadinessLine(label:String,count:Int,hint:String) {
+    Row(verticalAlignment=Alignment.Top,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Text(fa(count),style=MaterialTheme.typography.titleMedium,fontWeight=FontWeight.Bold,modifier=Modifier.width(28.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label,style=MaterialTheme.typography.bodyMedium,fontWeight=FontWeight.Medium)
+            Text(hint,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
