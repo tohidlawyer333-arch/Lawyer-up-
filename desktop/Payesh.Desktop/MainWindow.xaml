@@ -20,9 +20,9 @@
     <TextBlock Text="عبارت رمزگذاری روی سرور ارسال نمی‌شود. آن را در جای امن نگه دارید؛ فراموشی آن می‌تواند بازیابی داده را ناممکن کند." TextWrapping="Wrap" FontSize="12" Foreground="#6B4E16" Margin="0,12,0,0"/>
    </StackPanel></ScrollViewer></Border>
    <Border Grid.Column="1" Background="White" CornerRadius="12" Padding="18" BorderBrush="#DCE5EC" BorderThickness="1"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-    <StackPanel Grid.Row="0" Margin="0,0,0,10"><TextBlock Text="فضای کاری محلی" FontSize="18" FontWeight="Bold" Foreground="#102A43"/><TextBlock Text="یادداشت‌ها و اطلاعاتی که وارد می‌کنید، پیش از ذخیره‌سازی رمزگذاری می‌شوند." Foreground="#526777" TextWrapping="Wrap" Margin="0,5,0,0"/></StackPanel>
+    <StackPanel Grid.Row="0" Margin="0,0,0,10"><TextBlock Text="داده‌های همگام‌شده دفتر" FontSize="18" FontWeight="Bold" Foreground="#102A43"/><TextBlock Text="خروجی ساختاریافته دفتر پایش از موبایل دریافت و رمزگشایی محلی می‌شود. ویرایش مستقیم برای جلوگیری از خرابی ساختار همگام‌سازی محدود است." Foreground="#526777" TextWrapping="Wrap" Margin="0,5,0,0"/></StackPanel>
     <TextBox Grid.Row="1" x:Name="WorkspaceBox" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" Padding="12" FontSize="14" FlowDirection="RightToLeft" VerticalContentAlignment="Top"/>
-    <TextBlock Grid.Row="2" Text="این نسخه اولیه، فضای کاری و لایه همگام‌سازی را فراهم می‌کند؛ قابلیت‌های کامل پرونده و ثنا هنوز به نسخه ویندوز منتقل نشده‌اند." TextWrapping="Wrap" FontSize="12" Foreground="#6B4E16" Margin="0,12,0,0"/>
+    <TextBlock Grid.Row="2" Text="نسخه اولیه ویندوز برای مشاهده و همگام‌سازی امن است؛ مدیریت کامل پرونده‌ها، ثنا و OCR هنوز در حال توسعه است." TextWrapping="Wrap" FontSize="12" Foreground="#6B4E16" Margin="0,12,0,0"/>
    </Grid></Border>
   </Grid>
   <DockPanel Grid.Row="3" Margin="2,14,2,0"><TextBlock Text="پایش | اطلاعات محرمانه را در رایانه مشترک ذخیره نکنید." Foreground="#526777" VerticalAlignment="Center"/><TextBlock DockPanel.Dock="Left" Text="نسخه آزمایشی" Foreground="#9B5C13" FontWeight="Bold" VerticalAlignment="Center"/></DockPanel>
