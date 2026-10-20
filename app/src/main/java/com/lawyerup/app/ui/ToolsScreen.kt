@@ -79,7 +79,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
         if(!granted) model.message.value="اعلان‌ها مجاز نیستند؛ پیگیری‌ها در برنامه باقی می‌مانند"
     }
     val importDocument=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) model.perform {
-        val result=documents.read(uri) {page,total->documentStatus="OCR: ${fa(page)} از ${fa(total)} صفحه"}
+        val result=documents.read(uri, {page,total->documentStatus="OCR: ${fa(page)} از ${fa(total)} صفحه"}, includeEnglish)
         importedText=result.text
         documentStatus="${fa(result.pages)} صفحه؛ ${if(result.usedOcr)"OCR؛ شناسه و تاریخ‌ها را حتماً بررسی کنید" else "متن PDF؛ پیش از ذخیره بازبینی کنید"}"
     }}
@@ -129,8 +129,23 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                 Text("فایل فقط روی دستگاه پردازش می‌شود. نتیجه OCR ممکن است اشتباه داشته باشد؛ شماره‌ها و تاریخ‌ها را پیش از ثبت اصلاح کنید.")
                 Button(enabled=!busy,onClick={importDocument.launch(arrayOf("application/pdf","image/*"))}){Text("انتخاب PDF یا تصویر")}
                 Text(documentStatus)
+                Row(verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+                    Checkbox(checked=includeEnglish,onCheckedChange={includeEnglish=it})
+                    Text("سند شامل واژه‌های انگلیسی است؛ تشخیص دوزبانه",style=MaterialTheme.typography.bodySmall)
+                }
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {FilterChip(kind==RecordKind.NOTICE,{kind=RecordKind.NOTICE},label={Text("ابلاغیه")});FilterChip(kind==RecordKind.CASE,{kind=RecordKind.CASE},label={Text("اطلاع‌رسانی پرونده")})}
-                OutlinedTextField(importedText,{importedText=it},label={Text("متن بازبینی‌شده؛ شماره پرونده/ابلاغیه با عنوان صریح")},modifier=Modifier.fillMaxWidth().heightIn(min=260.dp))
+                OutlinedTextField(importedText,{importedText=it},label={Text("متن استخراج‌شده و قابل ویرایش")},modifier=Modifier.fillMaxWidth().heightIn(min=260.dp))
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick={if(importedText.isNotEmpty()) deletedText=importedText;importedText=""},modifier=Modifier.weight(1f)) {Text("پاک‌کردن تمام متن استخراج‌شده")}
+                    OutlinedButton(enabled=deletedText.isNotEmpty(),onClick={importedText=deletedText},modifier=Modifier.weight(1f)) {Text("بازگرداندن متن پاک‌شده")}
+                }
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Button(enabled=importedText.isNotBlank(),onClick={
+                        clipboardText=if(clipboardText.isBlank()) importedText else clipboardText+"\n\n"+importedText
+                        model.message.value="متن به کلیپ‌بورد داخلی افزوده شد؛ فقط از تنظیمات می‌توان محتویات آن را حذف کرد"
+                    },modifier=Modifier.weight(1f)) {Text("ذخیره متن در کلیپ‌بورد")}
+                    OutlinedButton(onClick={tool="clipboard"},modifier=Modifier.weight(1f)) {Text("کلیپ‌بورد")}
+                }
                 Button(enabled=!busy&&importedText.isNotBlank(),onClick={
                     val record=Extraction.fromDocument(importedText,kind)
                     if(record==null)model.message.value="شناسه یکتا با عنوان شماره پرونده/ابلاغیه پیدا نشد؛ متن را اصلاح کنید"
