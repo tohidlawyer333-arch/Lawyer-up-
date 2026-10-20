@@ -25,6 +25,7 @@ interface VaultDao {
     @Query("SELECT * FROM vault ORDER BY updated DESC") suspend fun all(): List<VaultRow>
     @Query("SELECT * FROM vault WHERE id = :id") suspend fun get(id: String): VaultRow?
     @Upsert suspend fun put(rows: List<VaultRow>)
+    @Query("DELETE FROM vault WHERE id = :id") suspend fun delete(id: String)
 }
 
 @Database(entities = [VaultRow::class], version = 1, exportSchema = true)
@@ -120,6 +121,27 @@ class WorkspaceRepository(context: Context, private val database: VaultDatabase 
             }
         }
         ImportReport(records.map { it.id }.distinct().size, changed, rejected)
+    }
+
+    private fun bufferId(key: String): String {
+        require(key in setOf("ocr", "ocr-undo", "internal-clipboard")) { "شناسه حافظه متنی معتبر نیست" }
+        return "buffer:$key"
+    }
+
+    suspend fun readTextBuffer(key: String): String {
+        val id = bufferId(key)
+        val stored = dao.get(id) ?: return ""
+        if (stored.kind != "text-buffer") return ""
+        return JSONObject(crypto.open(stored.payload, id)).optString("value", "")
+    }
+
+    suspend fun writeTextBuffer(key: String, value: String) = database.withTransaction {
+        val id = bufferId(key)
+        dao.put(listOf(row(id, "text-buffer", JSONObject().put("value", value))))
+    }
+
+    suspend fun deleteTextBuffer(key: String) = database.withTransaction {
+        dao.delete(bufferId(key))
     }
 
     suspend fun review(id: String, reviewed: Boolean) = database.withTransaction {
