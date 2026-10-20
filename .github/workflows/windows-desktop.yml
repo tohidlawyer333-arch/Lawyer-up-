@@ -68,7 +68,7 @@ jobs:
           test "$code" = "401"
           code=$(curl -s -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer ci-token-for-tests-12345678901234567890' -H 'X-Payesh-User: ci-user' http://127.0.0.1:5088/v1/sync/workspace)
           test "$code" = "404"
-          payload=$(printf 'PAYESHE1%s' 'this-is-a-test-encrypted-envelope' | base64 -w0)
+          payload=$(printf 'PAYESHE1%s' 'this-is-a-test-encrypted-envelope-with-more-than-forty-four-bytes' | base64 -w0)
           code=$(curl -s -o /tmp/payesh-put.json -w '%{http_code}' -X PUT http://127.0.0.1:5088/v1/sync/workspace -H 'Content-Type: application/json' -H 'Authorization: Bearer ci-token-for-tests-12345678901234567890' -H 'X-Payesh-User: ci-user' --data "{\"expectedRevision\":0,\"payload\":\"$payload\"}")
           test "$code" = "200"
           grep -q '"revision":1' /tmp/payesh-put.json
