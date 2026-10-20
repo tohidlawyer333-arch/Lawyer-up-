@@ -21,6 +21,7 @@ class MainActivity: ComponentActivity() {
     private var gateMessage by mutableStateOf("با قفل دستگاه وارد دفتر امن خود شوید")
     private val preferences by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
     private var themeChoice by mutableStateOf("system")
+    private var stoppedAt: Long = 0L
     private val authentication=registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         unlocked=result.resultCode==Activity.RESULT_OK
         if(!unlocked) gateMessage="ورود تأیید نشد؛ برای ادامه دوباره تلاش کنید"
@@ -39,6 +40,20 @@ class MainActivity: ComponentActivity() {
             }
         }
     }
+    override fun onStop() {
+        stoppedAt = System.currentTimeMillis()
+        super.onStop()
+    }
+
+    override fun onStart() {
+        super.onStart()
+        if (unlocked && stoppedAt > 0L) {
+            val timeout = preferences.getInt("lock_timeout_ms", 60_000)
+            if (timeout == 0 || (timeout > 0 && System.currentTimeMillis() - stoppedAt >= timeout)) unlocked = false
+            stoppedAt = 0L
+        }
+    }
+
     @Suppress("DEPRECATION")
     private fun authenticate() {
         val manager=getSystemService(KeyguardManager::class.java)
