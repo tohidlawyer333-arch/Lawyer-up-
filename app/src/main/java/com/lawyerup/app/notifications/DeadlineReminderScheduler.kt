@@ -95,6 +95,7 @@ object DeadlineReminderScheduler {
         "payesh-deadline-${taskId.hashCode()}-$daysBefore"
 
     internal fun showReminder(context: Context, daysBefore: Int) {
+        if (!isEnabled(context)) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
