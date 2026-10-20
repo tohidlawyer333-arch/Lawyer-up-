@@ -4,6 +4,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using System.Windows;
 
 namespace Payesh.Desktop;
@@ -30,6 +31,7 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(WorkspaceBox.Text) && File.Exists(LocalFile))
             {
                 WorkspaceBox.Text = Encoding.UTF8.GetString(Decrypt(await File.ReadAllBytesAsync(LocalFile), pass));
+                WorkspaceBox.IsReadOnly = IsPayeshWorkspace(WorkspaceBox.Text);
                 StatusText.Text = "فضای کاری محلی با موفقیت رمزگشایی شد.";
                 return;
             }
@@ -64,7 +66,9 @@ public partial class MainWindow : Window
                 if (string.IsNullOrWhiteSpace(localText) && File.Exists(LocalFile))
                     localText = Encoding.UTF8.GetString(Decrypt(await File.ReadAllBytesAsync(LocalFile), pass));
                 if (string.IsNullOrWhiteSpace(localText))
-                    throw new InvalidOperationException("نسخه محلی و ابری وجود ندارد؛ ابتدا متن فضای کاری را وارد و ذخیره کنید.");
+                    throw new InvalidOperationException("نسخه محلی و ابری وجود ندارد؛ ابتدا همگام‌سازی اولیه را از برنامه اندروید انجام دهید.");
+                if (!IsPayeshWorkspace(localText))
+                    throw new InvalidOperationException("برای همگام‌سازی، فقط قالب رسمی خروجی دفتر پایش (format=1) پذیرفته می‌شود؛ متن آزاد همگام نمی‌شود.");
                 var created = await PutWorkspace(client, 0, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
                 _remoteRevision = created.Revision;
                 WorkspaceBox.Text = localText;
@@ -77,6 +81,8 @@ public partial class MainWindow : Window
                 ?? throw new InvalidOperationException("پاسخ سرویس قابل خواندن نیست.");
             _remoteRevision = remote.Revision;
             var remoteText = Encoding.UTF8.GetString(Decrypt(Convert.FromBase64String(remote.Payload), pass));
+            if (!IsPayeshWorkspace(remoteText))
+                throw new InvalidDataException("محتوای ابری قالب دفتر پایش نیست؛ هیچ داده‌ای بازنویسی نشد.");
 
             if (string.IsNullOrWhiteSpace(localText) && File.Exists(LocalFile))
                 localText = Encoding.UTF8.GetString(Decrypt(await File.ReadAllBytesAsync(LocalFile), pass));
@@ -84,12 +90,14 @@ public partial class MainWindow : Window
             if (string.IsNullOrWhiteSpace(localText))
             {
                 WorkspaceBox.Text = remoteText;
+                WorkspaceBox.IsReadOnly = true;
                 await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(remoteText), pass));
                 StatusText.Text = $"نسخه ابری دریافت شد (نسخه {_remoteRevision}).";
                 return;
             }
             if (string.Equals(localText, remoteText, StringComparison.Ordinal))
             {
+                WorkspaceBox.IsReadOnly = true;
                 StatusText.Text = $"نسخه محلی و ابری یکسان‌اند (نسخه {_remoteRevision}).";
                 return;
             }
@@ -105,6 +113,7 @@ public partial class MainWindow : Window
             if (choice == MessageBoxResult.Yes)
             {
                 WorkspaceBox.Text = remoteText;
+                WorkspaceBox.IsReadOnly = true;
                 await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(remoteText), pass));
                 StatusText.Text = $"نسخه ابری دریافت شد (نسخه {_remoteRevision}).";
                 return;
@@ -113,6 +122,7 @@ public partial class MainWindow : Window
             var updated = await PutWorkspace(client, _remoteRevision, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
             _remoteRevision = updated.Revision;
             WorkspaceBox.Text = localText;
+            WorkspaceBox.IsReadOnly = true;
             await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
             StatusText.Text = $"نسخه محلی به‌صورت رمزگذاری‌شده ارسال شد (نسخه {_remoteRevision}).";
         }
@@ -129,6 +139,21 @@ public partial class MainWindow : Window
         response.EnsureSuccessStatusCode();
         return await response.Content.ReadFromJsonAsync<SyncEnvelope>()
             ?? throw new InvalidOperationException("پاسخ ذخیره‌سازی سرویس قابل خواندن نیست.");
+    }
+
+    private static bool IsPayeshWorkspace(string text)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            var root = document.RootElement;
+            return root.ValueKind == JsonValueKind.Object &&
+                root.TryGetProperty("format", out var format) && format.GetInt32() == 1 &&
+                root.TryGetProperty("records", out var records) && records.ValueKind == JsonValueKind.Array &&
+                root.TryGetProperty("tasks", out var tasks) && tasks.ValueKind == JsonValueKind.Array &&
+                records.GetArrayLength() <= 20_000 && tasks.GetArrayLength() <= 50_000;
+        }
+        catch { return false; }
     }
 
     private static byte[] Encrypt(byte[] plain, string passphrase)
