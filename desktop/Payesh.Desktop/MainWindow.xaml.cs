@@ -25,6 +25,12 @@ public partial class MainWindow : Window
         {
             var pass = PassphraseBox.Password;
             if (pass.Length < 12) throw new InvalidOperationException("عبارت رمزگذاری باید حداقل ۱۲ نویسه باشد.");
+            if (string.IsNullOrWhiteSpace(WorkspaceBox.Text) && File.Exists(LocalFile))
+            {
+                WorkspaceBox.Text = Encoding.UTF8.GetString(Decrypt(await File.ReadAllBytesAsync(LocalFile), pass));
+                StatusText.Text = "فضای کاری محلی با موفقیت رمزگشایی شد.";
+                return;
+            }
             if (WorkspaceBox.Text.Length == 0) throw new InvalidOperationException("ابتدا محتوای فضای کاری را وارد کنید.");
             await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(WorkspaceBox.Text), pass));
             StatusText.Text = "فضای کاری به‌صورت رمزگذاری‌شده در پروفایل همین کاربر ویندوز ذخیره شد.";
@@ -48,33 +54,79 @@ public partial class MainWindow : Window
             using var client = new HttpClient { BaseAddress = new Uri(baseUrl + "/"), Timeout = TimeSpan.FromSeconds(20) };
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
             client.DefaultRequestHeaders.Add("X-Payesh-User", user);
+
+            var localText = WorkspaceBox.Text;
             var response = await client.GetAsync("v1/sync/workspace");
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
-                StatusText.Text = "فضای ابری هنوز ساخته نشده است؛ سرویس باید از قبل پیکربندی شود. هیچ داده‌ای ارسال نشد.";
+                if (string.IsNullOrWhiteSpace(localText) && File.Exists(LocalFile))
+                    localText = Encoding.UTF8.GetString(Decrypt(await File.ReadAllBytesAsync(LocalFile), pass));
+                if (string.IsNullOrWhiteSpace(localText))
+                    throw new InvalidOperationException("نسخه محلی و ابری وجود ندارد؛ ابتدا متن فضای کاری را وارد و ذخیره کنید.");
+                var created = await PutWorkspace(client, 0, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
+                _remoteRevision = created.Revision;
+                WorkspaceBox.Text = localText;
+                await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
+                StatusText.Text = $"فضای کاری به‌صورت رمزگذاری‌شده ارسال شد (نسخه {_remoteRevision}).";
                 return;
             }
             response.EnsureSuccessStatusCode();
             var remote = await response.Content.ReadFromJsonAsync<SyncEnvelope>()
                 ?? throw new InvalidOperationException("پاسخ سرویس قابل خواندن نیست.");
             _remoteRevision = remote.Revision;
-            if (string.IsNullOrWhiteSpace(remote.Payload))
+            var remoteText = Encoding.UTF8.GetString(Decrypt(Convert.FromBase64String(remote.Payload), pass));
+
+            if (string.IsNullOrWhiteSpace(localText) && File.Exists(LocalFile))
+                localText = Encoding.UTF8.GetString(Decrypt(await File.ReadAllBytesAsync(LocalFile), pass));
+
+            if (string.IsNullOrWhiteSpace(localText))
             {
-                StatusText.Text = "فضای ابری خالی است. ابتدا محتوای محلی را ذخیره کنید.";
+                WorkspaceBox.Text = remoteText;
+                await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(remoteText), pass));
+                StatusText.Text = $"نسخه ابری دریافت شد (نسخه {_remoteRevision}).";
                 return;
             }
-            var remoteText = Encoding.UTF8.GetString(Decrypt(Convert.FromBase64String(remote.Payload), pass));
-            if (!string.IsNullOrWhiteSpace(WorkspaceBox.Text) && !string.Equals(WorkspaceBox.Text, remoteText, StringComparison.Ordinal))
+            if (string.Equals(localText, remoteText, StringComparison.Ordinal))
             {
-                var choice = MessageBox.Show("محتوای محلی با نسخه ابری متفاوت است. بله: دریافت نسخه ابری؛ خیر: لغو و حفظ محتوا برای بررسی دستی.", "تعارض همگام‌سازی", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-                if (choice != MessageBoxResult.Yes) { StatusText.Text = "تعارض شناسایی شد؛ چیزی بازنویسی نشد."; return; }
+                StatusText.Text = $"نسخه محلی و ابری یکسان‌اند (نسخه {_remoteRevision}).";
+                return;
             }
-            WorkspaceBox.Text = remoteText;
-            await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(remoteText), pass));
-            StatusText.Text = $"نسخه رمزگذاری‌شده دریافت شد (نسخه {_remoteRevision}).";
+
+            var choice = MessageBox.Show(
+                "محتوای محلی و ابری متفاوت است. بله: دریافت نسخه ابری؛ خیر: ارسال نسخه محلی؛ لغو: هیچ تغییری نده.",
+                "تعارض همگام‌سازی", MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+            if (choice == MessageBoxResult.Cancel)
+            {
+                StatusText.Text = "تعارض شناسایی شد؛ هیچ نسخه‌ای بازنویسی نشد.";
+                return;
+            }
+            if (choice == MessageBoxResult.Yes)
+            {
+                WorkspaceBox.Text = remoteText;
+                await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(remoteText), pass));
+                StatusText.Text = $"نسخه ابری دریافت شد (نسخه {_remoteRevision}).";
+                return;
+            }
+
+            var updated = await PutWorkspace(client, _remoteRevision, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
+            _remoteRevision = updated.Revision;
+            WorkspaceBox.Text = localText;
+            await File.WriteAllBytesAsync(LocalFile, Encrypt(Encoding.UTF8.GetBytes(localText), pass));
+            StatusText.Text = $"نسخه محلی به‌صورت رمزگذاری‌شده ارسال شد (نسخه {_remoteRevision}).";
         }
         catch (Exception ex) { StatusText.Text = "همگام‌سازی انجام نشد: " + SafeMessage(ex); }
         finally { SyncButton.IsEnabled = true; }
+    }
+
+    private static async Task<SyncEnvelope> PutWorkspace(HttpClient client, long expectedRevision, byte[] encryptedPayload)
+    {
+        var payload = Convert.ToBase64String(encryptedPayload);
+        using var response = await client.PutAsJsonAsync("v1/sync/workspace", new { expectedRevision, payload });
+        if (response.StatusCode == HttpStatusCode.Conflict)
+            throw new InvalidOperationException("نسخه ابری هم‌زمان تغییر کرده است؛ دوباره دریافت و تعارض را بررسی کنید.");
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<SyncEnvelope>()
+            ?? throw new InvalidOperationException("پاسخ ذخیره‌سازی سرویس قابل خواندن نیست.");
     }
 
     private static byte[] Encrypt(byte[] plain, string passphrase)
@@ -104,5 +156,5 @@ public partial class MainWindow : Window
         ex is HttpRequestException ? "اتصال به سرویس برقرار نشد؛ نشانی و گواهی TLS را بررسی کنید." :
         ex is CryptographicException ? "رمزگشایی ناموفق بود؛ عبارت رمزگذاری را بررسی کنید. اطلاعات بازنویسی نشد." : ex.Message;
 
-    private sealed record SyncEnvelope(long Revision, string? Payload);
+    private sealed record SyncEnvelope(long Revision, string Payload);
 }
