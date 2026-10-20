@@ -87,10 +87,10 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
         if(portal==null) portal=PortalController(context,model.repository).also {it.open("https://eblagh1.adliran.ir/ENotice/Index")}
         page="portal"
     }
-    Scaffold(topBar={TopAppBar(title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
+    Scaffold(topBar={TopAppBar(navigationIcon={if(page=="portal") {IconButton(onClick={page="home"}) {Icon(Icons.Outlined.ArrowBack,"بازگشت به دفتر")}}},title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
-    })},snackbarHost={SnackbarHost(snack)},bottomBar={NavigationBar {
+    })},snackbarHost={SnackbarHost(snack)},bottomBar={if(page!="portal") NavigationBar {
         listOf(Triple("home","دفتر",Icons.Outlined.SpaceDashboard),Triple("cases","پرونده‌ها",Icons.Outlined.FolderOpen),Triple("notices","ابلاغ‌ها",Icons.Outlined.NotificationsNone),Triple("tasks","پیگیری",Icons.Outlined.TaskAlt),Triple("tools","ابزارها",Icons.Outlined.Widgets)).forEach { (route,label,icon) ->
             NavigationBarItem(selected=page==route,onClick={page=route},icon={Icon(icon,null)},label={Text(label,style=MaterialTheme.typography.labelSmall)})
         }

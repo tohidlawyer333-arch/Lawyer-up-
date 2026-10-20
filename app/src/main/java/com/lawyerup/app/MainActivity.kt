@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Intent
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,7 +27,6 @@ class MainActivity: ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         themeChoice=getSharedPreferences("preferences",0).getString("themeChoice","teal")?.takeIf { it in setOf("teal","navy","pink") } ?: "teal"
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent {
             LawyerUpTheme(themeChoice) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
