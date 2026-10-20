@@ -74,7 +74,7 @@ object Extraction {
 }
 
 data class ImportReport(val accepted: Int, val changed: Int, val rejected: Int)
-data class SyncReport(val success: Boolean, val pages: Int, val accepted: Int, val changed: Int, val message: String)
+data class SyncReport(val success: Boolean, val pages: Int, val accepted: Int, val changed: Int, val message: String, val rejected: Int = 0)
 
 class PaginationRunner(private val limit: Int = 100) {
     suspend fun run(read: suspend () -> PageRead, save: suspend (PageRead) -> ImportReport,
@@ -85,7 +85,7 @@ class PaginationRunner(private val limit: Int = 100) {
         var rejected = 0
         val seen = mutableSetOf<String>()
         var source = ""
-        fun stop(reason: String) = SyncReport(false, pages, accepted, changed, "$reason؛ $pages صفحه و $changed تغییر ذخیره شد. دریافت کامل تأیید نشده است")
+        fun stop(reason: String) = SyncReport(false, pages, accepted, changed, "$reason؛ صفحه: $pages؛ ردیف معتبر: $accepted؛ ردشده: $rejected؛ تغییر: $changed. دریافت کامل تأیید نشده است", rejected)
         while(pages < limit) {
             if(cancelled()) return stop("دریافت متوقف شد")
             val page = read()
@@ -105,7 +105,7 @@ class PaginationRunner(private val limit: Int = 100) {
             rejected += report.rejected
             progress(pages, accepted)
             if(page.blockedFrames > 0 || page.truncated) return stop("بخشی از محتوا قابل خواندن نیست")
-            if(page.paging == "end") return SyncReport(rejected == 0, pages, accepted, changed, "$pages صفحه؛ $accepted ردیف معتبر؛ $changed تغییر؛ $rejected ردیف ردشده. پایان فهرست فعلی با فیلترهای سامانه شناسایی شد${if(rejected>0) "؛ ردیف‌های ردشده نیازمند بررسی‌اند" else ""}")
+            if(page.paging == "end") return SyncReport(rejected == 0, pages, accepted, changed, "$pages صفحه؛ $accepted ردیف معتبر؛ $changed تغییر؛ $rejected ردیف ردشده. پایان فهرست فعلی با فیلترهای سامانه شناسایی شد${if(rejected>0) "؛ ردیف‌های ردشده نیازمند بررسی‌اند" else ""}", rejected)
             if(page.paging != "next") return stop("کنترل صفحه‌بندی قابل تشخیص نیست")
             if(pages >= limit) return stop("سقف ایمنی صفحات رسید")
             if(cancelled() || !next()) return stop("صفحه بعد دریافت نشد")
