@@ -19,16 +19,19 @@ class MainActivity: ComponentActivity() {
     private val model: WorkspaceModel by viewModels()
     private var unlocked by mutableStateOf(false)
     private var gateMessage by mutableStateOf("با قفل دستگاه وارد دفتر امن خود شوید")
+    private val preferences by lazy { getSharedPreferences("preferences", MODE_PRIVATE) }
+    private var themeChoice by mutableStateOf("system")
     private val authentication=registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         unlocked=result.resultCode==Activity.RESULT_OK
         if(!unlocked) gateMessage="ورود تأیید نشد؛ برای ادامه دوباره تلاش کنید"
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        themeChoice = preferences.getString("theme_choice", "system") ?: "system"
         setContent {
-            LawyerUpTheme {
+            LawyerUpTheme(themeChoice=themeChoice) {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    WorkspaceApp(model,onLock={unlocked=false},locked=!unlocked)
+                    WorkspaceApp(model,onLock={unlocked=false},locked=!unlocked,themeChoice=themeChoice,onThemeChange={choice->themeChoice=choice;preferences.edit().putString("theme_choice",choice).apply()})
                     if(!unlocked) androidx.compose.ui.window.Dialog(onDismissRequest={},properties=androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth=false,dismissOnBackPress=false,dismissOnClickOutside=false)) {
                         WelcomeScreen(gateMessage,::authenticate) {startActivity(Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS))}
                     }
