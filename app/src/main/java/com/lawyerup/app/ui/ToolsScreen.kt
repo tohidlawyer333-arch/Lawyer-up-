@@ -129,7 +129,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                     syncStatus="در حال همگام‌سازی…"
                     model.perform {
                         try {
-                            syncStatus=PayeshSyncClient.sync(context,model.repository,syncUrl.trim(),syncUser.trim(),token,phrase)
+                            syncStatus=PayeshSyncClient.sync(model.repository,syncUrl.trim(),syncUser.trim(),token,phrase)
                             model.message.value=syncStatus
                         } catch(error:Exception) {
                             syncStatus=error.message?.take(180) ?: "همگام‌سازی ناموفق بود"
