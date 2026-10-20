@@ -135,7 +135,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                             syncStatus=error.message?.take(180) ?: "همگام‌سازی ناموفق بود"
                             model.message.value=syncStatus
                         } finally {
-                            phrase.fill('\\u0000')
+                            phrase.fill(0.toChar())
                         }
                     }
                 }) { Text("همگام‌سازی امن") }
