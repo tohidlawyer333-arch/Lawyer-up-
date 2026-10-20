@@ -29,7 +29,7 @@ import java.math.BigDecimal
 import java.time.LocalDate
 
 @Composable
-fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
+fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,themeChoice:String="teal",onThemeChange:(String)->Unit={}) {
     val context=LocalContext.current
     val documents=remember {Documents(context)}
     var tool by rememberSaveable {mutableStateOf("")}
@@ -93,7 +93,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
     val optimize=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) model.perform {
         val bytes=documents.optimize(uri,normalize(limit).toInt())
         pendingBytes=bytes
-        withContext(Dispatchers.Main) {savePdf.launch("LawyerUp-attachment.pdf")}
+        withContext(Dispatchers.Main) {savePdf.launch("Payesh-attachment.pdf")}
     }}
     val saveBackup=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) {uri->
         if(uri!=null) {
@@ -162,8 +162,12 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                 OutlinedButton(onClick={tool="document"}) {Text("بازگشت به OCR")}
             }
             "settings" -> {
-                Text("تنظیمات و حریم خصوصی",style=MaterialTheme.typography.titleLarge)
+                Text("تنظیمات، حریم خصوصی و ظاهر",style=MaterialTheme.typography.titleLarge)
                 Text("متن OCR، متن قابل‌بازیابی و کلیپ‌بورد در حافظه رمزگذاری‌شده محلی نگهداری می‌شوند. این اطلاعات به سرویس ابری ارسال نمی‌شوند.")
+                Text("تم سراسری برنامه؛ رنگ پس‌زمینه، کارت‌ها، دکمه‌ها، نوار پیمایش و اجزای اصلی تغییر می‌کند.",style=MaterialTheme.typography.bodySmall)
+                Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    listOf("teal" to "سبزآبی","navy" to "سرمه‌ای","pink" to "صورتی").forEach {(value,label)->FilterChip(selected=themeChoice==value,onClick={onThemeChange(value)},label={Text(label)})}
+                }
                 OutlinedButton(onClick={showDeleteClipboardConfirm=true}) {Text("حذف محتویات کلیپ‌بورد داخلی")}
                 if(showDeleteClipboardConfirm) AlertDialog(
                     onDismissRequest={showDeleteClipboardConfirm=false},
@@ -185,18 +189,18 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                 Text("پشتیبان رمزگذاری‌شده",style=MaterialTheme.typography.titleLarge)
                 Text("عبارت حداقل ۱۲ نویسه؛ فراموشی آن قابل بازیابی نیست. پشتیبان شامل پرونده، ابلاغ، پیگیری و پیش‌نویس است؛ رمز ثنا و نشست در آن نیست.")
                 OutlinedTextField(password,{password=it},label={Text("عبارت محرمانه پشتیبان")},visualTransformation=PasswordVisualTransformation(),modifier=Modifier.fillMaxWidth())
-                Button(enabled=password.length>=12&&!busy,onClick={saveBackup.launch("LawyerUp-backup.lup")}){Text("انتخاب محل و ذخیره پشتیبان")}
+                Button(enabled=password.length>=12&&!busy,onClick={saveBackup.launch("Payesh-backup.lup")}){Text("انتخاب محل و ذخیره پشتیبان")}
                 OutlinedButton(enabled=password.length>=12&&!busy,onClick={restoreBackup.launch(arrayOf("*/*"))}){Text("انتخاب پشتیبان و ادغام با دفتر")}
             }
             else -> {
                 ToolButton("دریافت از ثنا","نشست رسمی؛ بدون ارسال خودکار",receive)
                 ToolButton("ورود PDF و تصویر","OCR فارسی آفلاین؛ تشخیص انگلیسی اختیاری"){tool="document"}
                 ToolButton("کلیپ‌بورد داخلی","ذخیره رمزگذاری‌شده روی دستگاه"){tool="clipboard"}
-                ToolButton("تنظیمات و حریم خصوصی","مدیریت حافظه متنی و حذف کلیپ‌بورد"){tool="settings"}
+                ToolButton("تنظیمات، حریم خصوصی و تم","انتخاب تم سراسری و مدیریت کلیپ‌بورد"){tool="settings"}
                 ToolButton("تقویم و فرصت‌های پیگیری","موعد روزشمار، جلسه اول و ارزیابی شش‌ماهه"){tool="calendar"}
                 ToolButton("قرارداد و محاسبات","چک‌لیست اختیارات و نرخ‌های تأییدشده"){tool="powers"}
                 ToolButton("آماده‌سازی ضمائم","تبدیل تصویر به PDF با سقف حجم"){tool="convert"}
-                ToolButton("مرجع دعاوی LawyerUp","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
+                ToolButton("مرجع دعاوی و مستندات","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
                 ToolButton("تطبیق متن با مرجع","پیشنهاد کلیدواژه‌ای؛ نه نظر قطعی حقوقی"){navigate("matcher")}
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
                 Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر (تقریباً هر ۱۲ ساعت)",Modifier.padding(8.dp))}
