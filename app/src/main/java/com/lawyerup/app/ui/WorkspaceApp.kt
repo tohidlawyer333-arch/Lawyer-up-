@@ -135,7 +135,7 @@ fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(Co
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("پرونده دریافت‌شده",data.cases.size,Icons.Outlined.FolderOpen,Modifier.weight(1f)){navigate("cases")};Metric("ابلاغ بررسی‌نشده",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}}}
         item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("موعد نزدیک یا گذشته",near,Icons.Outlined.Event,Modifier.weight(1f)){navigate("tasks")};Metric("تطبیق دقیق شناسه",exact,Icons.Outlined.JoinInner,Modifier.weight(1f)){navigate("notices")}}}
         item {SectionTitle("میز پیگیری","بررسی دستی از نتیجه تطبیق جداست")}
-        if(data.notices.isEmpty()) item {EmptyPanel("دفتر آماده دریافت است","در بخش ثنا، ورود و فهرست موردنظر را باز کنید. فقط اطلاعات قابل‌خواندن همان فهرست دریافت می‌شود.",Icons.Outlined.Inbox)}
+        if(data.notices.isEmpty()) item {EmptyPanel("هیچ ابلاغیه‌ای در پایش ثبت نشده","این وضعیت به‌هیچ‌وجه نشان نمی‌دهد کارتابل ثنا خالی است. تا وقتی گزارش دریافت موفق و تعداد رکوردهای واردشده را بررسی نکرده‌اید، ثنا را مستقلاً کنترل کنید.",Icons.Outlined.Inbox)}
         items(data.notices.filter {!it.reviewed}.take(3),key={it.id}) {record->RecordTile(record,data){detail(record)}}
         item {OutlinedButton(onClick={navigate("tasks")},modifier=Modifier.fillMaxWidth()){Text("همه پیگیری‌ها و پیش‌نویس‌ها")}}
         item {Text("تطبیق شناسه، اثبات کفایت حقوقی اقدام نیست. محاسبه موعد نیازمند تاریخ مبنا و تأیید تقویم وکیل است.",style=MaterialTheme.typography.bodySmall)}
