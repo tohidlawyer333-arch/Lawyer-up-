@@ -161,7 +161,7 @@ class WorkspaceRepository(context: Context, private val database: VaultDatabase 
     suspend fun report(report: SyncReport, host: String) {
         val json = JSONObject().put("at", System.currentTimeMillis()).put("ok", report.success)
             .put("pages", report.pages).put("accepted", report.accepted).put("changed", report.changed)
-            .put("message", report.message).put("host", host)
+            .put("rejected", report.rejected).put("message", report.message).put("host", host)
         dao.put(listOf(row("sync-report", "report", json)))
     }
     suspend fun export(): String {
