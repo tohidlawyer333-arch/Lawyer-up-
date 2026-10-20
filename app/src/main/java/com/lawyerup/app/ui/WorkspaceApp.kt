@@ -161,7 +161,7 @@ fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
     var filter by rememberSaveable {mutableStateOf("همه")}
     val filtered=(if(notices)data.notices else data.cases).filter {record ->
         normalize(record.text+record.caseNumber+record.noticeNumber).contains(normalize(query)) && when(filter) {
-            "در انتظار" -> !record.reviewed
+            "بررسی‌نشده در پایش" -> !record.reviewed
             "بررسی‌شده در پایش" -> record.reviewed
             "تطبیق دقیق" -> Reconciler.match(record.copy(reviewed=false),data.cases).level in setOf(MatchLevel.EXACT,MatchLevel.ACTION_RECORDED)
             else -> true
@@ -175,7 +175,7 @@ fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {SectionTitle(if(notices)"ابلاغیه‌ها" else "اطلاع‌رسانی پرونده‌ها","${fa(records.size)} مورد • $subtitle")}
         item {OutlinedTextField(value=query,onValueChange={query=it},label={Text("شماره، شعبه یا موضوع")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true)}
-        if(notices) item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("همه","در انتظار","تطبیق دقیق","بررسی‌شده در پایش","۲۰ مشاهده‌شده اخیر در ثنا").forEach {label->FilterChip(selected=label==filter,onClick={filter=label},label={Text(label)})}}}
+        if(notices) item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("همه","بررسی‌نشده در پایش","تطبیق دقیق","بررسی‌شده در پایش","۲۰ مشاهده‌شده اخیر در ثنا").forEach {label->FilterChip(selected=label==filter,onClick={filter=label},label={Text(label)})}}}
         if(records.isEmpty()) item {EmptyPanel("موردی پیدا نشد","بررسی کنید که فهرست درست را در ثنا باز کرده و دریافت موفق با تعداد رکوردهای معتبر ثبت شده باشد.",Icons.Outlined.ManageSearch)}
         items(records,key={it.id}) {record->RecordTile(record,data){detail(record)}}
     }
@@ -304,7 +304,13 @@ fun HealthScreen(data:Workspace,controller:PortalController?,receive:()->Unit) {
         }}}
         item {Text("آخرین دریافت",style=MaterialTheme.typography.titleMedium)}
         if(data.reports.isEmpty()) item {Text("هنوز دریافت ثبت نشده است")}
-        items(data.reports) {report->Card {Column(Modifier.padding(20.dp)) {Badge(if(report.optBoolean("ok"))"دریافت محدوده انتخابی موفق" else "دریافت ناقص یا ناموفق");Text(report.optString("message"))}}}
+        items(data.reports) {report ->
+            Card {Column(Modifier.padding(20.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+                Badge(if(report.optBoolean("ok"))"دریافت محدوده انتخابی موفق" else "دریافت ناقص یا ناموفق")
+                Text(report.optString("message"))
+                Text("صفحات: ${fa(report.optInt("pages"))} • ردیف معتبر: ${fa(report.optInt("accepted"))} • تغییر: ${fa(report.optInt("changed"))} • ردشده: ${fa(report.optInt("rejected"))}",style=MaterialTheme.typography.bodySmall)
+            }}
+        }
         item {Text("گزارش بدون رمز، کوکی و مقدار ردیف‌ها",style=MaterialTheme.typography.titleMedium)}
         item {SelectionContainer {Text(controller?.diagnostic()?:"نشستی وجود ندارد",style=MaterialTheme.typography.bodySmall)}}
     }
