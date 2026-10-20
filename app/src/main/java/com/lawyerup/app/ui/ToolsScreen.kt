@@ -234,11 +234,20 @@ private fun CalendarTool(save:(WorkItem)->Unit) {
     Text("تقویم و فرصت‌های مشروط",style=MaterialTheme.typography.titleLarge)
     Text("مدت‌ها از توضیحات ضمیمه به‌عنوان قانون قطعی وارد نشده‌اند. مدت و تاریخ ابلاغ را از متن معتبر پرونده تعیین کنید؛ تعطیلات کامل و شرایط خاص را خودتان تأیید کنید.")
     listOf("روزشمار","ارزیابی شش‌ماهه","جلسه اول / فرصت مشروط").forEach {label->FilterChip(mode==label,{mode=label;calculated=null;confirmed=false},label={Text(label)})}
-    OutlinedTextField(title,{title=it},label={Text("عنوان و مستند / شرط فرصت")},modifier=Modifier.fillMaxWidth())
+    Text(
+        when(mode) {
+            "روزشمار" -> "روزشمار: تعداد روزهای مهلت را فقط از قانون یا تصمیم معتبر پرونده وارد کنید. تاریخ پایان پیشنهادی است؛ تعطیلات رسمی و قواعد خاص باید جداگانه بررسی شوند."
+            "ارزیابی شش‌ماهه" -> "شش ماه تقویمی از تاریخ مبنا محاسبه می‌شود. فقط زمانی استفاده کنید که قانون حاکم واقعاً دوره شش‌ماهه مقرر کرده باشد؛ این گزینه به‌تنهایی مهلت قانونی را تشخیص نمی‌دهد."
+            else -> "جلسه اول / فرصت مشروط: برای ساخت یادآور جلسه، رویداد یا موعد وابسته به شرط استفاده کنید. تاریخ ثبت‌شده یادآور است و تحقق شرط یا شروع مهلت قانونی را ثابت نمی‌کند."
+        },
+        style=MaterialTheme.typography.bodySmall,
+        color=MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    OutlinedTextField(title,{title=it},label={Text("عنوان پیگیری و مستند قانونی/قراردادی")},modifier=Modifier.fillMaxWidth())
     OutlinedTextField(date,{date=it;calculated=null;confirmed=false},label={Text("تاریخ مبنا شمسی؛ ۱۴۰۵/۰۷/۲۳")},modifier=Modifier.fillMaxWidth())
     if(mode=="روزشمار") {
         OutlinedTextField(days,{days=it;calculated=null},label={Text("مدت معتبر؛ روز")},modifier=Modifier.fillMaxWidth())
-        Row {Checkbox(actionDay,{actionDay=it;calculated=null});Text("روز اقدام هم جزو مدت حساب نشود",Modifier.padding(top=12.dp))}
+        Row {Checkbox(actionDay,{actionDay=it;calculated=null});Text("تاریخ مبنا در شمارش روزها لحاظ نشود",Modifier.padding(top=12.dp))}
         OutlinedTextField(holidays,{holidays=it;calculated=null;confirmed=false},label={Text("تعطیلات شمسی؛ هر خط یک تاریخ")},modifier=Modifier.fillMaxWidth())
     }
     Button(onClick={
@@ -250,11 +259,11 @@ private fun CalendarTool(save:(WorkItem)->Unit) {
                 else -> {calculated=start;output="یادآور تاریخ رویداد؛ تحقق شرط، پایان جلسه و وضعیت قطعیت باید توسط وکیل بررسی شود."}
             }
         }.onFailure {calculated=null;output="تاریخ، مدت یا فهرست تعطیلات معتبر نیست"}
-    }){Text("محاسبه پیشنهادی")}
+    }){Text("محاسبه تاریخ پیشنهادی")}
     Text(output)
     calculated?.let {result->
         Badge("تاریخ پیشنهادی: ${fa(PersianDates.display(result))}")
-        Row {Checkbox(confirmed,{confirmed=it});Text("مبنا، شرایط و تعطیلات را تأیید می‌کنم",Modifier.padding(top=12.dp))}
+        Row {Checkbox(confirmed,{confirmed=it});Text("قانون، تاریخ مبنا، تعطیلات و شرایط این پرونده را بررسی کردم",Modifier.padding(top=12.dp))}
         Button(enabled=confirmed&&title.isNotBlank(),onClick={save(WorkItem(identity("manual:${System.currentTimeMillis()}"),"",title,"$output\nمبنا: $date؛ نوع: $mode",result.toString(),true));output="پیگیری ذخیره شد"}){Text("ثبت موعد تأییدشده")}
     }
 }
