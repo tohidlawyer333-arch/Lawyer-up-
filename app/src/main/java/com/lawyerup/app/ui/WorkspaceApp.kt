@@ -106,7 +106,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
                 "portal" -> portal?.let {PortalScreen(it,{all->scope.launch {it.sync(all)}},{page="health"})}
                 "health" -> HealthScreen(data,portal,::openPortal)
                 "library" -> if(claimId==null) ClaimsListScreen(law){claimId=it} else Column {TextButton(onClick={claimId=null}){Text("بازگشت به مرجع")};AuthorityDetailScreen(law,claimId!!)}
-                "matcher" -> CaseMatcherScreen(law)
+                "matcher" -> CaseMatcherScreen(law,data)
                 else -> ToolsScreen(model,{page=it},::openPortal,themeChoice,onThemeChange)
             }
             if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
