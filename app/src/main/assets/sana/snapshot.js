@@ -6,13 +6,17 @@
   const add = row => { if(result.rows.length < 1000) result.rows.push(row); else result.truncated = true; };
   const seen = new Set();
   const controls = [];
+  let noticeHeading = "";
   function inspect(doc) {
+    const candidateHeading = [...doc.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading],.nav-link.active,.active")].filter(visible).map(text).find(value =>
+      /ابلاغیه/.test(value) && /(مشاهده[\s\u200c]*شده|مشاهده[\s\u200c]*نشده|باز[\s\u200c]*نشده|جدید)/.test(value));
+    if(candidateHeading) noticeHeading = candidateHeading;
     if([...doc.querySelectorAll('input[type=password]')].some(visible)) result.login = true;
     if([...doc.querySelectorAll('[aria-busy=true],.k-loading-mask')].some(visible)) result.loading = true;
     if([...doc.querySelectorAll('p')].some(node => visible(node) && /در حال بارگ[ذز]اری ابلاغیه/.test(text(node)))) result.loading = true;
     for(const card of doc.querySelectorAll('.card-table-row')) {
       if(!visible(card)) continue;
-      const pairs = [...card.querySelectorAll('p')].map(text).filter(value => /^(شماره ابلاغیه|شماره پرونده|ردیف فرعی|تاریخ صدور|صادر کننده|موضوع ابلاغیه|موضوع پرونده)\s*[:：]/.test(value))
+      const pairs = [...card.querySelectorAll('p')].map(text).filter(value => /^(شماره ابلاغیه|شماره پرونده|ردیف فرعی|شماره بایگانی|تاریخ صدور|تاریخ ابلاغ|تاریخ ثبت|صادر کننده|صادرکننده|موضوع ابلاغیه|موضوع پرونده|شعبه|مرجع قضایی|کلاسه پرونده)\s*[:：]/.test(value))
         .map(value => {const split = value.search(/[:：]/);return [value.slice(0,split).trim(),value.slice(split+1).trim()];});
       if(!pairs.some(pair => /شماره (ابلاغیه|پرونده)/.test(pair[0]))) continue;
       add({headers:pairs.map(pair=>pair[0]),cells:pairs.map(pair=>pair[1])});
@@ -65,19 +69,7 @@
     }
   }
   inspect(document);
-  // Source evidence only: the list heading describes the portal view, not the lawyer's local review.
-  const headings = [...document.querySelectorAll('h1,h2,h3,h4,h5,h6,[role=heading],.nav-link.active,.active')]
-    .filter(visible).map(text);
-  const noticeHeading = headings.find(value =>
-    /ابلاغیه/.test(value) && /(مشاهده[\s\u200c]*شده|مشاهده[\s\u200c]*نشده|باز[\s\u200c]*نشده|جدید)/.test(value));
-  if(noticeHeading) {
-    for(const row of result.rows) {
-      if(row.headers && row.headers.some(header=>/شماره\s*ابلاغ/.test(header)) && !row.headers.includes('فهرست مبدأ ثنا')) {
-        row.headers.push('فهرست مبدأ ثنا');
-        row.cells.push(noticeHeading);
-      }
-    }
-  }
+  // Source evidence only: the heading may come from the page or an accessible frame.
   const details = result.rows.filter(row => row.context && row.headers.some(header=>/شماره\s*پرونده/.test(header)));
   if(details.length === 1) {
     const context = details[0];
