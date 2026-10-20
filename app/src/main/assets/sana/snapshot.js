@@ -7,7 +7,19 @@
   const seen = new Set();
   const controls = [];
   let noticeHeading = "";
+  let dateFilterPresent = false;
   function inspect(doc) {
+    const visibleDateFilter = [...doc.querySelectorAll('input')].some(input => {
+      if(!visible(input)) return false;
+      const metadata = [
+        input.getAttribute('aria-label'), input.getAttribute('placeholder'), input.getAttribute('title'),
+        input.getAttribute('name'), input.id, ...[...(input.labels || [])].map(text), text(input.parentElement)
+      ].filter(Boolean).join(' ');
+      const value = normalize(input.value || input.getAttribute('value') || '').trim();
+      const dateValue = /^(?:13|14|20)\d{2}[\/.-]\d{1,2}[\/.-]\d{1,2}$/.test(value);
+      return /از\s*تاریخ|تا\s*تاریخ|تاریخ|date/i.test(metadata) || dateValue;
+    });
+    if(visibleDateFilter) dateFilterPresent = true;
     const candidateHeading = [...doc.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading],.nav-link.active,.active")].filter(visible).map(text).find(value =>
       /ابلاغیه/.test(value) && /(مشاهده[\s\u200c]*شده|مشاهده[\s\u200c]*نشده|باز[\s\u200c]*نشده|جدید)/.test(value));
     if(candidateHeading) noticeHeading = candidateHeading;
@@ -90,6 +102,15 @@
   }
   result.pagination.state = controls.length === 1 ? (controls[0].disabled ? 'end' : 'next') : 'unknown';
   const noticeList = /ابلاغیه/.test(noticeHeading) && /(مشاهده[\s\u200c]*شده|مشاهده[\s\u200c]*نشده|باز[\s\u200c]*نشده|جدید)/.test(noticeHeading);
-  if(noticeList && result.adapter === 'enotice-cards-v2' && !controls.length && ![...document.querySelectorAll('nav[aria-label="Page navigation example"]')].some(visible)) result.pagination.state = 'end';
+  if(noticeList && result.adapter === 'enotice-cards-v2') {
+    const visiblePager = [...document.querySelectorAll('nav[aria-label="Page navigation example"]')].some(visible);
+    if(dateFilterPresent) {
+      result.pagination.dateFilterPresent = true;
+      if(result.pagination.state === 'end') result.pagination.state = 'filtered-end';
+      else if(result.pagination.state === 'unknown' || (!controls.length && !visiblePager)) result.pagination.state = 'filtered';
+    } else if(!controls.length && !visiblePager) {
+      result.pagination.state = 'end';
+    }
+  }
   return JSON.stringify(result);
 })()
