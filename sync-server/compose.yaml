@@ -11,7 +11,10 @@ services:
     ports:
       - "127.0.0.1:5088:8080"
     volumes:
-      - ./data:/data
+      - payesh-data:/data
     read_only: true
     tmpfs:
       - /tmp:size=16m,noexec,nosuid
+
+volumes:
+  payesh-data:
