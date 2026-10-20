@@ -39,7 +39,7 @@ import java.time.ZoneId
 fun WelcomeScreen(message:String,onEnter:()->Unit,onSecurity:()->Unit) {
     Surface(Modifier.fillMaxSize(),color=MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),verticalArrangement=Arrangement.Center) {
-            Hero("دفتر شما،\nیک قدم جلوتر.","LawyerUp • دستیار پرونده و پیگیری",null)
+            Hero("دفتر شما،\nیک قدم جلوتر.","پایش • دستیار پرونده و پیگیری",null)
             Spacer(Modifier.height(28.dp))
             Text("به دفتر امن خود خوش آمدید",style=MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
@@ -55,7 +55,7 @@ fun WelcomeScreen(message:String,onEnter:()->Unit,onSecurity:()->Unit) {
 @Composable
 fun Hero(title:String,subtitle:String,action:(@Composable ()->Unit)?) {
     Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Ink,Teal)),RoundedCornerShape(28.dp)).padding(24.dp)) {
-        Row(verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Outlined.Balance,null,tint=Gold);Spacer(Modifier.width(10.dp));Text("LAWYERUP / همراه دفتر",color=Color.White.copy(alpha=.8f),style=MaterialTheme.typography.labelMedium)}
+        Row(verticalAlignment=Alignment.CenterVertically) {Icon(Icons.Outlined.Balance,null,tint=Gold);Spacer(Modifier.width(10.dp));Text("پایش / همراه دفتر",color=Color.White.copy(alpha=.8f),style=MaterialTheme.typography.labelMedium)}
         Spacer(Modifier.height(20.dp))
         Text(title,style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold,color=Color.White)
         Spacer(Modifier.height(12.dp));Text(subtitle,color=Color(0xFFD9EAE3))
@@ -87,7 +87,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false) {
         if(portal==null) portal=PortalController(context,model.repository).also {it.open("https://eblagh1.adliran.ir/ENotice/Index")}
         page="portal"
     }
-    Scaffold(topBar={TopAppBar(title={Column {Text("LawyerUp",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
+    Scaffold(topBar={TopAppBar(title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
     })},snackbarHost={SnackbarHost(snack)},bottomBar={NavigationBar {
