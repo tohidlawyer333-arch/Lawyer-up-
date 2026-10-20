@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify-and-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -20,8 +20,17 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d
       - name: Android SDK
+        shell: bash
         run: |
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          sdkmanager_path="$(find "$sdk_root/cmdline-tools" -name sdkmanager -type f -print -quit 2>/dev/null || true)"
+          if [ -z "$sdkmanager_path" ]; then sdkmanager_path="$(command -v sdkmanager || true)"; fi
+          test -n "$sdkmanager_path"
+          echo "$(dirname "$sdkmanager_path")" >> "$GITHUB_PATH"
+          yes | "$sdkmanager_path" --licenses >/dev/null || true
+          "$sdkmanager_path" "platforms;android-36" "build-tools;36.0.0"
           chmod +x gradlew
       - name: Unit tests, lint and APK
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease --no-daemon --stacktrace

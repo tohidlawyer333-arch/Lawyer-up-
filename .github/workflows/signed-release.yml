@@ -5,7 +5,7 @@ permissions:
   contents: read
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -28,8 +28,15 @@ jobs:
           LAWYERUP_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           LAWYERUP_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
+          set -euo pipefail
           chmod +x gradlew
-          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$sdk_root"
+          sdkmanager_path="$(find "$sdk_root/cmdline-tools" -name sdkmanager -type f -print -quit 2>/dev/null || true)"
+          if [ -z "$sdkmanager_path" ]; then sdkmanager_path="$(command -v sdkmanager || true)"; fi
+          test -n "$sdkmanager_path"
+          yes | "$sdkmanager_path" --licenses >/dev/null || true
+          "$sdkmanager_path" "platforms;android-36" "build-tools;36.0.0"
           ./gradlew testDebugUnitTest lintRelease assembleRelease bundleRelease --no-daemon --stacktrace
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
