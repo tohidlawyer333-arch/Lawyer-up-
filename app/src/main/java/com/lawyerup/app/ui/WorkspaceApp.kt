@@ -155,7 +155,6 @@ fun Metric(title:String,value:Int,icon:ImageVector,modifier:Modifier,onClick:()-
 @Composable fun Badge(text:String) {Surface(color=MaterialTheme.colorScheme.secondaryContainer,shape=RoundedCornerShape(10.dp)) {Text(text,Modifier.padding(horizontal=10.dp,vertical=6.dp),style=MaterialTheme.typography.labelSmall)}}
 
 @Composable
-@Composable
 fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
     var query by rememberSaveable {mutableStateOf("")}
     var filter by rememberSaveable {mutableStateOf("همه")}
