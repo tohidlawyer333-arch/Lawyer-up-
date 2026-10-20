@@ -37,7 +37,10 @@ app.MapGet("/v1/sync/workspace", async (HttpContext http) =>
 app.MapPut("/v1/sync/workspace", async (HttpContext http, SyncWrite body) =>
 {
     if (!TryUser(http, tokenMap, out var userId)) return Results.Unauthorized();
-    if (body.Payload is null || body.Payload.Length is < 1 or > 14_000_000 || !body.Payload.StartsWith("PAYESHE1", StringComparison.Ordinal))
+    byte[] encryptedBytes;
+    try { encryptedBytes = Convert.FromBase64String(body.Payload ?? ""); }
+    catch (FormatException) { return Results.BadRequest(new { error = "invalid_encrypted_payload" }); }
+    if (encryptedBytes.Length is < 52 or > 10_000_000 || Encoding.ASCII.GetString(encryptedBytes, 0, 8) != "PAYESHE1")
         return Results.BadRequest(new { error = "invalid_encrypted_payload" });
     if (body.ExpectedRevision < 0) return Results.BadRequest(new { error = "invalid_revision" });
     await writeLock.WaitAsync();
