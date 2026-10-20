@@ -1,0 +1,13 @@
+name: Source safety
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  adapter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - run: npm --prefix tests/web ci --ignore-scripts
+      - run: npm --prefix tests/web test
+      - name: Verify bundled binary hashes
+        run: sha256sum --check docs/BINARY-SHA256SUMS

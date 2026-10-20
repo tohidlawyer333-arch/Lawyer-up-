@@ -1,0 +1,7 @@
+{
+  "name": "lawyerup-web-adapter-tests",
+  "private": true,
+  "version": "2.0.0",
+  "scripts": { "test": "node --test adapter.test.cjs" },
+  "devDependencies": { "jsdom": "24.1.3" }
+}

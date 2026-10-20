@@ -1,0 +1,49 @@
+netsim I 10-19 20:49:25.251 netsimd.rs:375 - netsim startup
+netsim I 10-19 20:49:25.257 netsimd.rs:384 - Artifacts: "C:\\Users\\ASUS\\AppData\\Local\\Temp\\netsimd"
+netsim I 10-19 20:49:25.259 netsimd.rs:386 - Args {
+    fd_startup_str: None,
+    connector_instance: None,
+    instance: None,
+    logtostderr: false,
+    dev: false,
+    no_cli_ui: true,
+    no_web_ui: false,
+    http_proxy: None,
+    no_shutdown: false,
+    idle_shutdown_timeout: None,
+    startup_timeout: None,
+    pcap: false,
+    disable_address_reuse: false,
+    verbose: false,
+    version: false,
+    grpc_port: None,
+    hci_port: None,
+    tcp_port: None,
+    ws_port: None,
+    host_dns: Some(
+        "10.238.8.213",
+    ),
+    forward_host_mdns: false,
+    test_beacons: false,
+    no_test_beacons: false,
+    wifi: WifiConfig {
+        wifi_ssid: None,
+        wifi_password: None,
+        wifi_channel: None,
+        wifi_beacon_interval: None,
+        wifi_mode: None,
+    },
+}
+none.xml:3: parser error : AttValue: " or ' expected
+<html lang=en>
+           ^
+none.xml:3: parser error : attributes construct error
+<html lang=en>
+           ^
+none.xml:3: parser error : Couldn't find end of Start Tag html line 3
+<html lang=en>
+           ^
+none.xml:3: parser error : Extra content at the end of the document
+<html lang=en>
+           ^
+G:\AndroidSdk\emulator\qemu\windows-x86_64\qemu-system-x86_64-headless.exe: virtio: zero sized buffers are not allowed

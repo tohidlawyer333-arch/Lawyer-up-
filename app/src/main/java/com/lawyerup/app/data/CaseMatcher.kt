@@ -16,12 +16,12 @@ object CaseMatcher {
     )
 
     fun match(text: String, allClaims: List<ClaimEntity>): List<MatchResult> {
-        val lower = text.lowercase()
+        val lower = com.lawyerup.app.domain.normalize(text).lowercase()
         val results = mutableListOf<MatchResult>()
         for (claim in allClaims) {
             var score = 0
             keywordsByForum[claim.forum]?.forEach { kw ->
-                if (kw in lower) score += 10
+                if (com.lawyerup.app.domain.normalize(kw) in lower) score += 10
             }
             claim.title.split(" ", "،").forEach { t ->
                 if (t.length > 2 && t in lower) score += 5
@@ -34,13 +34,14 @@ object CaseMatcher {
 
     fun draftBrief(text: String, matches: List<MatchResult>): String {
         val sb = StringBuilder()
-        sb.appendLine("ریاست محترم دادگاه")
+        sb.appendLine("پیش‌نویس اولیه؛ نیازمند بررسی وکیل، ارسال نشده")
+        sb.appendLine("ریاست محترم [مرجع صالح پس از بررسی]")
         sb.appendLine("موضوع: تقدیم لایحه")
         sb.appendLine()
         sb.appendLine("شرح واقعه از منظر موکل:")
         sb.appendLine(text)
         sb.appendLine()
-        sb.appendLine("با عنایت به شرح فوق و مطالعه پرونده محترم، مستنداً به مواد قانونی زیر تقاضای رسیدگی و صدور حکم موجه را دارد:")
+        sb.appendLine("نامزدهای مرتبط برای بررسی؛ انتخاب بر مبنای کلیدواژه است و انطباق قانونی احراز نشده:")
         sb.appendLine()
         matches.take(3).forEachIndexed { i, m ->
             sb.appendLine("${i + 1}. ${m.claim.title} — مستند به: ${m.claim.articles}")
