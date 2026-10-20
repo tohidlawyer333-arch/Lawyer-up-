@@ -152,6 +152,24 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
                     else model.perform {model.repository.importRecords(listOf(record));model.message.value="سند بازبینی‌شده ثبت شد";importedText=""}
                 }){Text("متن و شناسه‌ها را تأیید و ثبت می‌کنم")}
             }
+            "clipboard" -> {
+                Text("کلیپ‌بورد داخلی",style=MaterialTheme.typography.titleLarge)
+                Text("محتوا در حافظه رمزگذاری‌شده دستگاه نگهداری می‌شود و با جابه‌جایی بین بخش‌ها یا بستن برنامه از بین نمی‌رود. برای حذف محتوا فقط از تنظیمات استفاده کنید.")
+                OutlinedTextField(value=clipboardText,onValueChange={},readOnly=true,label={Text("متن‌های ذخیره‌شده")},modifier=Modifier.fillMaxWidth().heightIn(min=320.dp))
+                OutlinedButton(onClick={tool="document"}) {Text("بازگشت به OCR")}
+            }
+            "settings" -> {
+                Text("تنظیمات و حریم خصوصی",style=MaterialTheme.typography.titleLarge)
+                Text("متن OCR، متن قابل‌بازیابی و کلیپ‌بورد در حافظه رمزگذاری‌شده محلی نگهداری می‌شوند. این اطلاعات به سرویس ابری ارسال نمی‌شوند.")
+                OutlinedButton(onClick={showDeleteClipboardConfirm=true}) {Text("حذف محتویات کلیپ‌بورد داخلی")}
+                if(showDeleteClipboardConfirm) AlertDialog(
+                    onDismissRequest={showDeleteClipboardConfirm=false},
+                    title={Text("حذف کلیپ‌بورد داخلی؟")},
+                    text={Text("این کار فقط محتویات کلیپ‌بورد داخلی را حذف می‌کند و متن OCR و متن قابل‌بازیابی باقی می‌مانند.")},
+                    confirmButton={Button(onClick={clipboardText="";showDeleteClipboardConfirm=false;model.message.value="محتویات کلیپ‌بورد داخلی حذف شد"}) {Text("حذف محتویات")}},
+                    dismissButton={TextButton(onClick={showDeleteClipboardConfirm=false}) {Text("انصراف")}}
+                )
+            }
             "convert" -> {
                 Text("آماده‌سازی پیوست",style=MaterialTheme.typography.titleLarge)
                 Text("تصویر به PDF فشرده تبدیل می‌شود. اصل فایل تغییر نمی‌کند. PDF موجود با حفظ ساختار عبور می‌کند؛ فایل امضاشده خودکار دستکاری نمی‌شود.")
@@ -169,7 +187,9 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit) {
             }
             else -> {
                 ToolButton("دریافت از ثنا","نشست رسمی؛ بدون ارسال خودکار",receive)
-                ToolButton("ورود PDF و تصویر","OCR فارسی آفلاین و بازبینی متن"){tool="document"}
+                ToolButton("ورود PDF و تصویر","OCR فارسی آفلاین؛ تشخیص انگلیسی اختیاری"){tool="document"}
+                ToolButton("کلیپ‌بورد داخلی","ذخیره رمزگذاری‌شده روی دستگاه"){tool="clipboard"}
+                ToolButton("تنظیمات و حریم خصوصی","مدیریت حافظه متنی و حذف کلیپ‌بورد"){tool="settings"}
                 ToolButton("تقویم و فرصت‌های پیگیری","موعد روزشمار، جلسه اول و ارزیابی شش‌ماهه"){tool="calendar"}
                 ToolButton("قرارداد و محاسبات","چک‌لیست اختیارات و نرخ‌های تأییدشده"){tool="powers"}
                 ToolButton("آماده‌سازی ضمائم","تبدیل تصویر به PDF با سقف حجم"){tool="convert"}
