@@ -72,7 +72,7 @@
   // The active view title is source metadata only, not the lawyer's local review status.
   if(noticeHeading) {
     for(const row of result.rows) {
-      if(row.headers && row.headers.some(header=>/شماره\\s*ابلاغ/.test(header)) && !row.headers.includes("فهرست مبدأ ثنا")) {
+      if(row.headers && row.headers.some(header=>/شماره\s*ابلاغ/.test(header)) && !row.headers.includes("فهرست مبدأ ثنا")) {
         row.headers.push("فهرست مبدأ ثنا");
         row.cells.push(noticeHeading);
       }
@@ -89,7 +89,7 @@
     }
   }
   result.pagination.state = controls.length === 1 ? (controls[0].disabled ? 'end' : 'next') : 'unknown';
-  const noticeList = /ابلاغیه/.test(noticeHeading) && /(مشاهده[\\s\\u200c]*شده|مشاهده[\\s\\u200c]*نشده|باز[\\s\\u200c]*نشده|جدید)/.test(noticeHeading);
+  const noticeList = /ابلاغیه/.test(noticeHeading) && /(مشاهده[\s\u200c]*شده|مشاهده[\s\u200c]*نشده|باز[\s\u200c]*نشده|جدید)/.test(noticeHeading);
   if(noticeList && result.adapter === 'enotice-cards-v2' && !controls.length && ![...document.querySelectorAll('nav[aria-label="Page navigation example"]')].some(visible)) result.pagination.state = 'end';
   return JSON.stringify(result);
 })()
