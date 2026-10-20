@@ -44,29 +44,31 @@ class Documents(private val context: Context) {
         while(dimensions.outWidth/sample > 2400 || dimensions.outHeight/sample > 2400) sample *= 2
         return requireNotNull(BitmapFactory.decodeByteArray(bytes,0,bytes.size,BitmapFactory.Options().apply { inSampleSize = sample }))
     }
-    private fun ocr(bitmap: Bitmap): String {
+    private fun ocr(bitmap: Bitmap, includeEnglish: Boolean): String {
         val directory = File(context.filesDir, "ocr/tessdata").apply { mkdirs() }
-        for(language in listOf("fas", "eng")) {
+        // Persian-only is the default: loading an unnecessary English model can add false Latin tokens to Persian scans.
+        val languages = if(includeEnglish) listOf("fas", "eng") else listOf("fas")
+        for(language in languages) {
             val file = File(directory,"$language.traineddata")
             if(!file.exists()) context.assets.open("ocr/$language.traineddata").use { input -> file.outputStream().use { input.copyTo(it) } }
         }
         val engine = TessBaseAPI()
         try {
-            check(engine.init(directory.parent, "fas+eng")) { "موتور OCR آماده نشد" }
+            check(engine.init(directory.parent, languages.joinToString("+"))) { "موتور OCR آماده نشد" }
             engine.setImage(bitmap)
             return engine.utF8Text.orEmpty()
         } finally { engine.recycle() }
     }
-    suspend fun read(uri: Uri, progress: (Int, Int) -> Unit): DocumentText = withContext(Dispatchers.IO) {
+    suspend fun read(uri: Uri, progress: (Int, Int) -> Unit, includeEnglish: Boolean = false): DocumentText = withContext(Dispatchers.IO) {
         PDFBoxResourceLoader.init(context)
         val bytes=input(uri)
         if(!bytes.take(5).toByteArray().contentEquals("%PDF-".toByteArray())) {
             val bitmap=image(bytes)
-            try { return@withContext DocumentText(ocr(bitmap),true,1) } finally { bitmap.recycle() }
+            try { return@withContext DocumentText(ocr(bitmap, includeEnglish),true,1) } finally { bitmap.recycle() }
         }
         PDDocument.load(bytes).use { document ->
             require(!document.isEncrypted) { "فایل رمزدار را ابتدا خودتان باز کنید" }
-            require(document.numberOfPages <= 100) { "سقف ورود ۱۰۰ صفحه است" }
+            
             val text = PDFTextStripper().getText(document)
             if(text.count { it.isLetterOrDigit() } > document.numberOfPages * 20) return@withContext DocumentText(text,false,document.numberOfPages)
         }
@@ -75,7 +77,7 @@ class Documents(private val context: Context) {
             file.writeBytes(bytes)
             ParcelFileDescriptor.open(file,ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
                 PdfRenderer(descriptor).use { renderer ->
-                    require(renderer.pageCount<=30) { "سقف OCR هم‌زمان ۳۰ صفحه است؛ فایل را تقسیم کنید" }
+                    
                     val result=StringBuilder()
                     for(index in 0 until renderer.pageCount) {
                         coroutineContext.ensureActive()
@@ -83,7 +85,7 @@ class Documents(private val context: Context) {
                             val ratio = minOf(2.5f, 2400f / maxOf(page.width,page.height))
                             val bitmap=Bitmap.createBitmap((page.width*ratio).toInt(),(page.height*ratio).toInt(),Bitmap.Config.ARGB_8888)
                             bitmap.eraseColor(android.graphics.Color.WHITE)
-                            try { page.render(bitmap,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY); result.appendLine(ocr(bitmap)) } finally { bitmap.recycle() }
+                            try { page.render(bitmap,null,null,PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY); result.appendLine(ocr(bitmap, includeEnglish)) } finally { bitmap.recycle() }
                         }
                         progress(index+1,renderer.pageCount)
                     }
