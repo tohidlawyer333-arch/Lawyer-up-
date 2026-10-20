@@ -21,6 +21,19 @@ test('real notice cards read only labeled fields, never ordinal or view buttons'
   assert.equal(result.rows.length,1);assert.equal(result.rows[0].cells[0],'200000000000000001');
   assert.ok(!result.rows[0].cells.includes('26'));assert.equal(result.pagination.state,'end');dom.window.close();
 });
+test('date-filtered notice cards cannot be reported as complete history',()=>{
+  const dom=document('<h6>ابلاغیه‌های مشاهده شده</h6><label>از تاریخ <input value="۱۴۰۵/۰۶/۲۹"></label><label>تا تاریخ <input value="۱۴۰۵/۰۷/۲۸"></label>'+card(1,'200000000000000001'));
+  const result=read(dom);
+  assert.equal(result.rows.length,1);
+  assert.equal(result.pagination.state,'filtered');
+  assert.equal(result.pagination.dateFilterPresent,true);
+  dom.window.close();
+});
+test('last page of a date-filtered notice list is not the end of all history',()=>{
+  const dom=document('<h6>ابلاغیه‌های مشاهده شده</h6><label>از تاریخ <input value="1405/06/29"></label><label>تا تاریخ <input value="1405/07/28"></label>'+card(1,'200000000000000001')+'<div class="pagination"><button disabled>بعدی</button></div>');
+  assert.equal(read(dom).pagination.state,'filtered-end');
+  dom.window.close();
+});
 test('table headings define identities independently of column order',()=>{
   const dom=document('<table><thead><tr><th>شماره ابلاغیه</th><th>شماره پرونده</th></tr></thead><tbody><tr><td>200000000000000001</td><td>1000000000000001</td></tr></tbody></table>');
   assert.deepEqual(read(dom).rows[0].headers,['شماره ابلاغیه','شماره پرونده']);dom.window.close();
