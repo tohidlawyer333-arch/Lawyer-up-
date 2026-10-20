@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.lawyerup.app.*
 import com.lawyerup.app.data.BackupCipher
+import com.lawyerup.app.data.PayeshSyncClient
 import com.lawyerup.app.documents.Documents
 import com.lawyerup.app.domain.*
 import kotlinx.coroutines.Dispatchers
