@@ -73,7 +73,7 @@ object DeadlineReminderScheduler {
                 val delay = Duration.between(java.time.Instant.now(), scheduledAt).toMillis().coerceAtLeast(0L)
                 val request = OneTimeWorkRequestBuilder<DeadlineReminderWorker>()
                     .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-                    .setInputData(Data.Builder().putInt("daysBefore", daysBefore).build())
+                    .setInputData(Data.Builder().putInt("daysBefore", daysBefore).putInt("taskHash", task.id.hashCode()).build())
                     .addTag(TAG)
                     .build()
                 workManager.enqueueUniqueWork(name, ExistingWorkPolicy.REPLACE, request)
@@ -94,7 +94,7 @@ object DeadlineReminderScheduler {
     private fun workName(taskId: String, daysBefore: Int): String =
         "payesh-deadline-${taskId.hashCode()}-$daysBefore"
 
-    internal fun showReminder(context: Context, daysBefore: Int) {
+    internal fun showReminder(context: Context, daysBefore: Int, taskHash: Int) {
         if (!isEnabled(context)) return
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -107,8 +107,9 @@ object DeadlineReminderScheduler {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
         }
+        val notificationId = 7000 + ((taskHash and 0x7fffffff) % 100000) * 2 + daysBefore
         val pendingIntent = PendingIntent.getActivity(
-            context, 7100 + daysBefore, intent,
+            context, notificationId, intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val body = if (daysBefore == 1) {
@@ -126,7 +127,7 @@ object DeadlineReminderScheduler {
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
         if (NotificationManagerCompat.from(context).areNotificationsEnabled()) {
-            runCatching { NotificationManagerCompat.from(context).notify(7100 + daysBefore, notification) }
+            runCatching { NotificationManagerCompat.from(context).notify(notificationId, notification) }
         }
     }
 }
@@ -134,7 +135,8 @@ object DeadlineReminderScheduler {
 class DeadlineReminderWorker(context: Context, parameters: WorkerParameters) : Worker(context, parameters) {
     override fun doWork(): Result {
         val daysBefore = inputData.getInt("daysBefore", 0).coerceIn(0, 1)
-        DeadlineReminderScheduler.showReminder(applicationContext, daysBefore)
+        val taskHash = inputData.getInt("taskHash", 0)
+        DeadlineReminderScheduler.showReminder(applicationContext, daysBefore, taskHash)
         return Result.success()
     }
 }
