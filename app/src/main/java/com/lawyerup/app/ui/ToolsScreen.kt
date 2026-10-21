@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.lawyerup.app.*
 import com.lawyerup.app.data.BackupCipher
+import com.lawyerup.app.notifications.DeadlineReminderScheduler
 import com.lawyerup.app.documents.Documents
 import com.lawyerup.app.domain.*
 import kotlinx.coroutines.Dispatchers
@@ -206,10 +207,11 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
                 ToolButton("تقویم و فرصت‌های پیگیری","موعد روزشمار، جلسه اول و ارزیابی شش‌ماهه"){tool="calendar"}
                 ToolButton("قرارداد و محاسبات","چک‌لیست اختیارات و نرخ‌های تأییدشده"){tool="powers"}
                 ToolButton("آماده‌سازی ضمائم","تبدیل تصویر به PDF با سقف حجم"){tool="convert"}
-                ToolButton("مرجع دعاوی و مستندات","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
+                ToolButton("کتابخانه قوانین و مقررات","فهرست رسمی قابل جست‌وجو؛ متن هر قانون پس از دریافت در دستگاه ذخیره می‌شود"){navigate("legal")}
+                ToolButton("مرجع دعاوی و مستندات","نمونه‌های راهنما؛ استنادها باید با قانون جاری کنترل شوند"){navigate("library")}
                 ToolButton("تحلیل پرونده","کشف پیوندهای شناسه، تاریخ، مواد قانونی و اسناد ذخیره‌شده"){navigate("matcher")}
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
-                Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر (تقریباً هر ۱۲ ساعت)",Modifier.padding(8.dp))}
+                Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);DeadlineReminderScheduler.setEnabled(context,enabled);if(enabled) model.workspace.value.tasks.forEach { DeadlineReminderScheduler.schedule(context,it) };if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر + هشدار موعدهای تأییدشده",Modifier.padding(8.dp))}
                 Text("یادآور پس‌زمینه، داده ذخیره‌شده را بررسی می‌کند؛ بدون نشست معتبر، ورود ثنا یا دریافت جدید را جعل نمی‌کند.",style=MaterialTheme.typography.bodySmall)
                 Text("نسخه ۲.۰.۰ • داده‌ها محلی و رمزگذاری‌شده • هیچ ارسال قضایی خودکار انجام نمی‌شود",style=MaterialTheme.typography.labelSmall)
             }
