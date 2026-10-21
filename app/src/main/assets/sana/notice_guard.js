@@ -53,6 +53,12 @@
       if(root && root.matches && root.matches("iframe,frame")) frames.push(root);
       if(root && root.querySelectorAll) frames.push(...root.querySelectorAll("iframe,frame"));
       for (const frame of frames) {
+        if (!frame.__payeshGuardLoadHook) {
+          frame.__payeshGuardLoadHook = true;
+          frame.addEventListener("load", () => {
+            try { if (frame.contentDocument) install(frame.contentDocument); } catch (_) {}
+          });
+        }
         try { if (frame.contentDocument) install(frame.contentDocument); } catch (_) {}
       }
     };
