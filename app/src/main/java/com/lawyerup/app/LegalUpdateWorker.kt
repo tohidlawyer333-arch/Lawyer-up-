@@ -119,7 +119,11 @@ class LegalUpdateWorker(context:Context,parameters:WorkerParameters):CoroutineWo
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val preview=entries.take(3).joinToString("، ") { it.title }
-        val body=if(entries.size==1) preview else preview+" و "+(entries.size-3).coerceAtLeast(0)+" مورد دیگر"
+        val body=when {
+            entries.size==1 -> preview
+            entries.size<=3 -> preview
+            else -> preview+" و "+(entries.size-3)+" مورد دیگر"
+        }"
         val notification=NotificationCompat.Builder(applicationContext,"payesh_legal_updates")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("پایش: فهرست رسمی قوانین تغییر کرده است")
