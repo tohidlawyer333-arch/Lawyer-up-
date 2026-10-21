@@ -43,7 +43,7 @@ test('real notice cards read only labeled fields, never ordinal or view buttons'
   const dom=document(`<h6>ابلاغیه‌های مشاهده شده</h6>${card(26,'200000000000000001')}<p>27 28 29</p>`);
   const result=read(dom);
   assert.equal(result.rows.length,1);assert.equal(result.rows[0].cells[0],'200000000000000001');
-  assert.ok(!result.rows[0].cells.includes('26'));assert.equal(result.pagination.state,'unknown');dom.window.close();
+  assert.ok(!result.rows[0].cells.includes('26'));assert.equal(result.pagination.state,'unknown');assert.equal(result.viewTitle,'ابلاغیه‌های مشاهده شده');dom.window.close();
 });
 test('opening a notice card requires confirmation and cancellation prevents the click',()=>{
   const dom=document(`<h6>ابلاغیه‌های مشاهده نشده</h6>${card(1,'200000000000000001')}`);
@@ -65,6 +65,15 @@ test('date-filtered notice cards cannot be reported as complete history',()=>{
   assert.equal(result.rows.length,1);
   assert.equal(result.pagination.state,'filtered');
   assert.equal(result.pagination.dateFilterPresent,true);
+  assert.equal(result.pagination.fromDate,'1405/06/29');
+  assert.equal(result.pagination.toDate,'1405/07/28');
+  dom.window.close();
+});
+test('the visible list heading wins over a conflicting active navigation label',()=>{
+  const dom=document('<h6>ابلاغیه‌های مشاهده شده</h6><a class="active">ابلاغیه‌های مشاهده نشده</a>'+card(1,'200000000000000001'));
+  const result=read(dom);
+  assert.equal(result.viewTitle,'ابلاغیه‌های مشاهده شده');
+  assert.ok(result.rows[0].cells.includes('ابلاغیه‌های مشاهده شده'));
   dom.window.close();
 });
 test('empty date controls are not mistaken for an active historical filter',()=>{
