@@ -341,6 +341,12 @@ fun PortalScreen(controller:PortalController,sync:(Boolean)->Unit,health:()->Uni
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
             listOf("ابلاغیه‌ها" to "https://eblagh1.adliran.ir/ENotice/Index","اطلاع‌رسانی پرونده‌ها" to "https://resultcase.adliran.ir/ResultCase/CaseListForLawyer","پنل وکیل" to "https://lawyer.adliran.ir/Lawyer/Index").forEach {(label,url)->OutlinedButton(enabled=!controller.busy,onClick={controller.open(url)}){Text(label)}}
         }
+        Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(enabled=!controller.busy&&!controller.loading,onClick=controller::fillSanaCredentials) {
+                Text("پرکردن دستی مشخصات ورود")
+            }
+            Text("فقط فرم را پر می‌کند؛ رمز موقت و دکمه ورود خودکار نیست.",style=MaterialTheme.typography.labelSmall,modifier=Modifier.weight(1f))
+        }
         Text(controller.status,Modifier.padding(horizontal=16.dp,vertical=6.dp),style=MaterialTheme.typography.bodySmall)
         if(downloadError.isNotEmpty()) Text(downloadError,color=MaterialTheme.colorScheme.error)
         Row(Modifier.padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {Switch(all,{all=it},enabled=!controller.busy);Text("صفحات پیوسته از صفحه فعلی",Modifier.weight(1f),style=MaterialTheme.typography.labelSmall);TextButton(onClick=health){Text("گزارش")}}
