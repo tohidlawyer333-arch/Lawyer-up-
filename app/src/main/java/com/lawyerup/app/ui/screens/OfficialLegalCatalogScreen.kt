@@ -375,7 +375,7 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                                         if(OfficialLawCache.has(context,law)) {
                                             existing++
                                         } else {
-                                            bulkFetchStatus="دریافت متن \${(index+1).toString()} از \${candidates.size.toString()}: \${law.title}"
+                                            bulkFetchStatus="دریافت متن ${(index+1).toString()} از ${candidates.size.toString()}: ${law.title}"
                                             try {
                                                 withContext(Dispatchers.IO) { OfficialLawCache.fetchAndCache(context,law) }
                                                 downloaded++
@@ -386,7 +386,7 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                                         }
                                     }
                                     val missing=officialLaws.count { it.id.isBlank() }
-                                    bulkFetchStatus="پایان دریافت متن‌ها: \${downloaded.toString()} دریافت جدید، \${existing.toString()} قبلاً ذخیره‌شده، \${failures.size.toString()} ناموفق، \${missing.toString()} عنوان بدون شناسه تأییدشده. ناموفق: "+failures.take(6).joinToString("، ").ifBlank { "ندارد" }+(if(failures.size>6) " و موارد بیشتر" else "")
+                                    bulkFetchStatus="پایان دریافت متن‌ها: ${downloaded.toString()} دریافت جدید، ${existing.toString()} قبلاً ذخیره‌شده، ${failures.size.toString()} ناموفق، ${missing.toString()} عنوان بدون شناسه تأییدشده. ناموفق: "+failures.take(6).joinToString("، ").ifBlank { "ندارد" }+(if(failures.size>6) " و موارد بیشتر" else "")
                                 } catch(_:kotlinx.coroutines.CancellationException) {
                                     bulkFetchStatus="دریافت گروهی متوقف شد؛ متن‌های ذخیره‌شده باقی ماندند."
                                 } finally {
@@ -416,7 +416,7 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                                 try {
                                     for((index,law) in candidates.withIndex()) {
                                         kotlinx.coroutines.yield()
-                                        bulkRelationsStatus="بررسی روابط \${fa(index+1)} از \${fa(candidates.size)}: \${law.title}"
+                                        bulkRelationsStatus="بررسی روابط ${(index+1).toString()} از ${candidates.size.toString()}: ${law.title}"
                                         try {
                                             val found=withContext(Dispatchers.IO) { OfficialLawCache.fetchRelated(law) }
                                             val json=org.json.JSONArray()
@@ -431,7 +431,7 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                                             failures.add(law.title)
                                         }
                                     }
-                                    bulkRelationsStatus="پایان استخراج روابط: \${scanned.toString()} قانون بررسی شد؛ \${relatedCount.toString()} پیوند رسمی جمع‌آوری شد؛ \${fa(failures.size)} عنوان ناموفق. ناموفق: "+failures.take(6).joinToString("، ").ifBlank { "ندارد" }+(if(failures.size>6) " و موارد بیشتر" else "")+". فهرست پیوندها تضمینِ جامع‌بودن همه مقررات و آرا نیست."
+                                    bulkRelationsStatus="پایان استخراج روابط: ${scanned.toString()} قانون بررسی شد؛ ${relatedCount.toString()} پیوند رسمی جمع‌آوری شد؛ ${failures.size.toString()} عنوان ناموفق. ناموفق: "+failures.take(6).joinToString("، ").ifBlank { "ندارد" }+(if(failures.size>6) " و موارد بیشتر" else "")+". فهرست پیوندها تضمینِ جامع‌بودن همه مقررات و آرا نیست."
                                 } catch(_:kotlinx.coroutines.CancellationException) {
                                     bulkRelationsStatus="استخراج روابط متوقف شد؛ نتایج ثبت‌شده باقی ماندند."
                                 } finally {
