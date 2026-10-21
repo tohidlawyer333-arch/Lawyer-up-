@@ -1,6 +1,9 @@
 package com.lawyerup.app.ui.screens
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.text.Html
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -10,6 +13,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.core.content.ContextCompat
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Download
@@ -239,6 +243,17 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
     var exportText by remember { mutableStateOf("") }
     var relatedDocs by remember { mutableStateOf<List<RelatedOfficialDocument>>(emptyList()) }
     var loadingRelated by remember { mutableStateOf(false) }
+    val legalNotificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if(granted) {
+            monitorEnabled=true
+            LegalUpdateWorker.setEnabled(context,true)
+            monitorMessage="اعلان‌ها مجاز شد؛ بررسی فهرست رسمی فعال شد."
+        } else {
+            monitorEnabled=false
+            LegalUpdateWorker.setEnabled(context,false)
+            monitorMessage="بدون مجوز اعلان، پایش خودکار متوقف ماند."
+        }
+    }
     val saveText=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if(uri!=null) runCatching {
             context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(exportText) }
@@ -294,9 +309,18 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                             Text("هر ۱۲ ساعت فهرست قابل‌خواندن مرجع بررسی می‌شود؛ این روش همه اصلاحات متن قوانین یا همه آرای قضایی را تضمین نمی‌کند.",style=MaterialTheme.typography.bodySmall)
                         }
                         Switch(checked=monitorEnabled,onCheckedChange={enabled->
-                            monitorEnabled=enabled
-                            LegalUpdateWorker.setEnabled(context,enabled)
-                            monitorMessage=if(enabled) "بررسی دوره‌ای فعال شد؛ اجرای اول فقط خط مبنا را ثبت می‌کند." else "بررسی خودکار متوقف شد."
+                            if(!enabled) {
+                                monitorEnabled=false
+                                LegalUpdateWorker.setEnabled(context,false)
+                                monitorMessage="بررسی خودکار متوقف شد."
+                            } else if(Build.VERSION.SDK_INT>=33 &&
+                                ContextCompat.checkSelfPermission(context,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED) {
+                                legalNotificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                monitorEnabled=true
+                                LegalUpdateWorker.setEnabled(context,true)
+                                monitorMessage="بررسی دوره‌ای فعال شد؛ اجرای اول فقط خط مبنا را ثبت می‌کند."
+                            }
                         })
                     }
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
