@@ -105,11 +105,10 @@ class PaginationRunner(private val limit: Int = 100) {
             rejected += report.rejected
             progress(pages, accepted)
             if(page.blockedFrames > 0 || page.truncated) return stop("بخشی از محتوا قابل خواندن نیست")
-            if(page.paging == "filtered" || page.paging == "filtered-end") {
-                return stop(if(page.paging == "filtered-end") "پایان نتایج همین بازه تاریخی؛ سوابق خارج از این بازه دریافت نشده‌اند" else "بازه تاریخی فعال است و صفحه‌بندی قابل تشخیص نیست؛ فقط همین بازه بررسی شد")
-            }
+            if(page.paging == "filtered-end") return stop("پایان نتایج بازه تاریخی فعلی؛ سوابق خارج از این بازه دریافت نشده‌اند")
+            if(page.paging == "filtered") return stop("بازه تاریخی فعال است و صفحه‌بندی قابل تشخیص نیست؛ فقط همین بازه بررسی شد")
             if(page.paging == "end") return SyncReport(rejected == 0, pages, accepted, changed, "$pages صفحه؛ $accepted ردیف معتبر؛ $changed تغییر؛ $rejected ردیف ردشده. پایان فهرست فعلی با فیلترهای سامانه شناسایی شد${if(rejected>0) "؛ ردیف‌های ردشده نیازمند بررسی‌اند" else ""}", rejected)
-            if(page.paging != "next") return stop("کنترل صفحه‌بندی قابل تشخیص نیست")
+            if(page.paging != "next" && page.paging != "filtered-next") return stop("کنترل صفحه‌بندی قابل تشخیص نیست")
             if(pages >= limit) return stop("سقف ایمنی صفحات رسید")
             if(cancelled() || !next()) return stop("صفحه بعد دریافت نشد")
         }
