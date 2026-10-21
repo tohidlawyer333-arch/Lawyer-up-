@@ -73,7 +73,7 @@ private val officialLaws = listOf(
     OfficialLaw("قانون نحوه اجرای محکومیت‌های مالی","اجرای احکام","4687546238878663724"),
     OfficialLaw("قانون آیین دادرسی کیفری","کیفری","2433638803151753757"),
     OfficialLaw("قانون مبارزه با قاچاق کالا و ارز","کیفری و اقتصادی","12813502521337657905"),
-    OfficialLaw("قانون حمایت از کودکان و نوجوانان بی‌سرپرست و بدسرپرست؛ شناسه رسمی نیازمند تطبیق","خانواده",""),
+    OfficialLaw("قانون حمایت از کودکان و نوجوانان بی‌سرپرست و بدسرپرست","خانواده","5034321823157642"),
     OfficialLaw("قانون مجازات اسلامی","کیفری","4693937366938194803"),
     OfficialLaw("قانون حمایت خانواده","خانواده","5917848193987091276"),
     OfficialLaw("قانون بهبود مستمر محیط کسب‌وکار","اقتصادی و عمومی","1082234023675631014"),
@@ -101,6 +101,7 @@ private object OfficialLawCache {
     fun fetchRelated(law:OfficialLaw):List<RelatedOfficialDocument> {
         require(law.id.isNotBlank()) { "شناسه رسمی این عنوان نیازمند تطبیق است." }
         val endpoints=listOf(
+            law.url(),
             "https://qavanin.ir/Law/Attribute/?IDS="+law.id,
             "https://qavanin.ir/Law/StatusIndex/?IDS="+law.id
         )
