@@ -6,6 +6,7 @@ const { JSDOM } = require('jsdom');
 const asset = name => fs.readFileSync(path.join(__dirname,'../../app/src/main/assets/sana',name),'utf8');
 const snapshot = asset('snapshot.js');
 const next = asset('next.js');
+const noticeGuard = asset('notice_guard.js');
 const card = (ordinal,number) => `<div class="card-table-row"><p>${ordinal}</p><p>شماره ابلاغیه: <span>${number}</span></p><p>تاریخ صدور: 1405/07/19</p><p>صادر کننده: شعبه نمونه</p><p>موضوع ابلاغیه: موضوع نمونه</p><button>مشاهده</button></div>`;
 function document(html) {
   const dom = new JSDOM(html,{url:'https://eblagh1.adliran.ir/ENotice/Index',runScripts:'outside-only'});
@@ -20,6 +21,20 @@ test('real notice cards read only labeled fields, never ordinal or view buttons'
   const result=read(dom);
   assert.equal(result.rows.length,1);assert.equal(result.rows[0].cells[0],'200000000000000001');
   assert.ok(!result.rows[0].cells.includes('26'));assert.equal(result.pagination.state,'end');dom.window.close();
+});
+test('opening a notice card requires confirmation and cancellation prevents the click',()=>{
+  const dom=document(`<h6>ابلاغیه‌های مشاهده نشده</h6>${card(1,'200000000000000001')}`);
+  const button=dom.window.document.querySelector('.card-table-row button');
+  let opened=0;
+  button.addEventListener('click',()=>opened++);
+  dom.window.confirm=()=>false;
+  dom.window.eval(noticeGuard);
+  button.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true,cancelable:true}));
+  assert.equal(opened,0);
+  dom.window.confirm=()=>true;
+  button.dispatchEvent(new dom.window.MouseEvent('click',{bubbles:true,cancelable:true}));
+  assert.equal(opened,1);
+  dom.window.close();
 });
 test('date-filtered notice cards cannot be reported as complete history',()=>{
   const dom=document('<h6>ابلاغیه‌های مشاهده شده</h6><label>از تاریخ <input value="۱۴۰۵/۰۶/۲۹"></label><label>تا تاریخ <input value="۱۴۰۵/۰۷/۲۸"></label>'+card(1,'200000000000000001'));
