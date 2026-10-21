@@ -2,7 +2,7 @@
   const visible = node => !!node.getClientRects().length && node.ownerDocument.defaultView.getComputedStyle(node).visibility !== 'hidden';
   const text = node => (node.innerText || node.textContent || '').replace(/\s+/g, ' ').trim();
   const normalize = value => value.replace(/[۰-۹]/g, digit => '۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)).replace(/[٠-٩]/g, digit => '٠١٢٣٤٥٦٧٨٩'.indexOf(digit)).replace(/ي/g,'ی').replace(/ك/g,'ک');
-  const result = {url: location.href, rows: [], login: false, loading: document.readyState !== 'complete', frames: 0, blockedFrames: 0, truncated: false, adapter: 'structured-v2', pagination: {state: 'unknown'}};
+  const result = {url: location.href, viewTitle: '', rows: [], login: false, loading: document.readyState !== 'complete', frames: 0, blockedFrames: 0, truncated: false, adapter: 'structured-v2', pagination: {state: 'unknown'}};
   const add = row => { if(result.rows.length < 1000) result.rows.push(row); else result.truncated = true; };
   const seen = new Set();
   const controls = [];
@@ -82,6 +82,17 @@
     }
   }
   inspect(document);
+  result.viewTitle = noticeHeading;
+  if(dateFilterPresent) result.pagination.dateFilterPresent = true;
+  const datePattern = /^(?:13|14|20)\d{2}[\/.-]\d{1,2}[\/.-]\d{1,2}$/;
+  const topDateValues = [...document.querySelectorAll('input')]
+    .filter(visible)
+    .map(input => normalize(input.value || input.getAttribute('value') || '').trim())
+    .filter(value => datePattern.test(value));
+  if(topDateValues.length >= 2) {
+    result.pagination.fromDate = topDateValues[0];
+    result.pagination.toDate = topDateValues[1];
+  }
   // The active view title is source metadata only, not the lawyer's local review status.
   if(noticeHeading) {
     for(const row of result.rows) {
