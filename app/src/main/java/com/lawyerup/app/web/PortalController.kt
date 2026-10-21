@@ -31,6 +31,7 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
         private set
     private val snapshotScript = context.assets.open("sana/snapshot.js").bufferedReader().use { it.readText() }
     private val nextScript = context.assets.open("sana/next.js").bufferedReader().use { it.readText() }
+    private val interactionGuardScript = context.assets.open("sana/notice_guard.js").bufferedReader().use { it.readText() }
     @SuppressLint("SetJavaScriptEnabled")
     val view = WebView(context).apply {
         settings.javaScriptEnabled = true
@@ -156,32 +157,6 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
             status = "ذخیره گزارش ناموفق بود؛ دریافت کامل تأیید نشده است. سلامت حافظه را بررسی کنید"
         } finally { busy = false }
     }
-
-    private val interactionGuardScript = """
-        (function () {
-          if (window.__payeshNoticeGuardInstalled) return;
-          document.addEventListener('click', function (event) {
-            var control = event.target && event.target.closest('button,a,[role="button"],input[type="button"],input[type="submit"]');
-            if (!control) return;
-            var label = (control.innerText || control.textContent || control.value || '').replace(/\s+/g, ' ').trim();
-            if (!/^مشاهده(\s+ابلاغیه)?$/.test(label)) return;
-            var allowed = window.confirm('PAYESH_CONFIRM_NOTICE:بازکردن این ابلاغیه در سامانه رسمی ممکن است وضعیت آن را به «مشاهده‌شده» تغییر دهد. فقط در صورت آمادگی برای این تغییر ادامه بدهید.');
-            if (!allowed) {
-              event.preventDefault();
-              event.stopPropagation();
-              event.stopImmediatePropagation();
-            }
-          }, true);
-          var viewport = document.querySelector('meta[name="viewport"]');
-          if (!viewport) {
-            viewport = document.createElement('meta');
-            viewport.name = 'viewport';
-            document.head.appendChild(viewport);
-          }
-          viewport.content = 'width=device-width, initial-scale=1, maximum-scale=3, user-scalable=yes';
-          window.__payeshNoticeGuardInstalled = true;
-        })();
-    """.trimIndent()
 
     fun diagnostic(): String = org.json.JSONObject().put("version", "2.0.0").put("host", runCatching { java.net.URI(url).host }.getOrNull())
         .put("busy", busy).put("loading", loading).put("pageError", failed).put("adapter", lastPage?.adapter)
