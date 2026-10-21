@@ -15,6 +15,7 @@ import kotlinx.coroutines.*
 import kotlin.coroutines.resume
 
 class PortalController(context: Context, private val repository: WorkspaceRepository) {
+    private val appContext = context.applicationContext
     var status by mutableStateOf("ورود به سامانه را خودتان تکمیل کنید؛ رمز موقت ذخیره نمی‌شود")
         private set
     var loading by mutableStateOf(false)
@@ -95,7 +96,7 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
         view.loadUrl(location)
     }
     fun fillSanaCredentials() {
-        val credentials = SanaCredentialVault.load(context)
+        val credentials = SanaCredentialVault.load(appContext)
         if (credentials == null) {
             status = "مشخصات ورود رمزگذاری‌شده ذخیره نشده است؛ ابتدا از تنظیمات پایش ذخیره کنید."
             return
