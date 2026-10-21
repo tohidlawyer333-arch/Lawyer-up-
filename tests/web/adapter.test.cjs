@@ -7,6 +7,7 @@ const asset = name => fs.readFileSync(path.join(__dirname,'../../app/src/main/as
 const snapshot = asset('snapshot.js');
 const next = asset('next.js');
 const noticeGuard = asset('notice_guard.js');
+const noticeGuard = asset('notice_guard.js');
 const card = (ordinal,number) => `<div class="card-table-row"><p>${ordinal}</p><p>شماره ابلاغیه: <span>${number}</span></p><p>تاریخ صدور: 1405/07/19</p><p>صادر کننده: شعبه نمونه</p><p>موضوع ابلاغیه: موضوع نمونه</p><button>مشاهده</button></div>`;
 function document(html) {
   const dom = new JSDOM(html,{url:'https://eblagh1.adliran.ir/ENotice/Index',runScripts:'outside-only'});
@@ -16,6 +17,29 @@ function document(html) {
 }
 function read(dom) {return JSON.parse(dom.window.eval(snapshot));}
 
+test('notice opening is cancelled unless the lawyer explicitly confirms',()=>{
+  const dom=document('<h6>ابلاغیه‌های مشاهده نشده</h6><div class="card-table-row"><p>شماره ابلاغیه: 200000000000000001</p><button id="view">مشاهده</button></div>');
+  let message='';let pageHandlerRan=false;
+  dom.window.confirm=value=>{message=value;return false;};
+  dom.window.document.querySelector('#view').addEventListener('click',()=>{pageHandlerRan=true;});
+  dom.window.eval(noticeGuard);
+  dom.window.document.querySelector('#view').click();
+  assert.match(message,/PAYESH_CONFIRM_NOTICE:/);
+  assert.match(message,/مشاهده‌شده/);
+  assert.equal(pageHandlerRan,false);
+  dom.window.close();
+});
+test('notice opening continues only after positive explicit confirmation',()=>{
+  const dom=document('<h6>ابلاغیه‌های مشاهده نشده</h6><div class="card-table-row"><p>شماره ابلاغیه: 200000000000000001</p><button id="view">مشاهده</button></div>');
+  let promptCount=0;let pageHandlerRan=false;
+  dom.window.confirm=value=>{promptCount++;return true;};
+  dom.window.document.querySelector('#view').addEventListener('click',()=>{pageHandlerRan=true;});
+  dom.window.eval(noticeGuard);
+  dom.window.document.querySelector('#view').click();
+  assert.equal(promptCount,1);
+  assert.equal(pageHandlerRan,true);
+  dom.window.close();
+});
 test('real notice cards read only labeled fields, never ordinal or view buttons',()=>{
   const dom=document(`<h6>ابلاغیه‌های مشاهده شده</h6>${card(26,'200000000000000001')}<p>27 28 29</p>`);
   const result=read(dom);
