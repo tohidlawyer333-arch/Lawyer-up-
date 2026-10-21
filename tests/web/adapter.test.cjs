@@ -43,7 +43,7 @@ test('real notice cards read only labeled fields, never ordinal or view buttons'
   const dom=document(`<h6>ابلاغیه‌های مشاهده شده</h6>${card(26,'200000000000000001')}<p>27 28 29</p>`);
   const result=read(dom);
   assert.equal(result.rows.length,1);assert.equal(result.rows[0].cells[0],'200000000000000001');
-  assert.ok(!result.rows[0].cells.includes('26'));assert.equal(result.pagination.state,'end');dom.window.close();
+  assert.ok(!result.rows[0].cells.includes('26'));assert.equal(result.pagination.state,'unknown');dom.window.close();
 });
 test('opening a notice card requires confirmation and cancellation prevents the click',()=>{
   const dom=document(`<h6>ابلاغیه‌های مشاهده نشده</h6>${card(1,'200000000000000001')}`);
@@ -70,7 +70,7 @@ test('date-filtered notice cards cannot be reported as complete history',()=>{
 test('empty date controls are not mistaken for an active historical filter',()=>{
   const dom=document('<h6>ابلاغیه‌های مشاهده شده</h6><label>از تاریخ <input value=""></label><label>تا تاریخ <input value=""></label>'+card(1,'200000000000000001'));
   const result=read(dom);
-  assert.equal(result.pagination.state,'end');
+  assert.equal(result.pagination.state,'unknown');
   assert.equal(result.pagination.dateFilterPresent,undefined);
   dom.window.close();
 });
