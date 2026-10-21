@@ -106,7 +106,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
                 "portal" -> portal?.let {PortalScreen(it,{all->scope.launch {it.sync(all)}},{page="health"})}
                 "health" -> HealthScreen(data,portal,::openPortal)
                 "library" -> if(claimId==null) ClaimsListScreen(law){claimId=it} else Column {TextButton(onClick={claimId=null}){Text("بازگشت به مرجع")};AuthorityDetailScreen(law,claimId!!)}
-                "matcher" -> CaseMatcherScreen(law)
+                "matcher" -> CaseMatcherScreen(law,data)
                 else -> ToolsScreen(model,{page=it},::openPortal,themeChoice,onThemeChange)
             }
             if(busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -125,20 +125,38 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
 @Composable
 fun Dashboard(data:Workspace,navigate:(String)->Unit,receive:()->Unit,detail:(CourtRecord)->Unit) {
     val today=LocalDate.now(ZoneId.of("Asia/Tehran"))
-    val near=data.tasks.count {!it.done && it.dateConfirmed && runCatching {LocalDate.parse(it.due)<=today.plusDays(3)}.getOrDefault(false)}
-    val exact=data.notices.count {Reconciler.match(it.copy(reviewed=false),data.cases).level in setOf(MatchLevel.EXACT,MatchLevel.ACTION_RECORDED)}
+    fun due(task:WorkItem)=if(task.dateConfirmed) runCatching { LocalDate.parse(task.due) }.getOrNull() else null
+    val overdue=data.tasks.count {task -> !task.done && due(task)?.isBefore(today)==true}
+    val ambiguous=data.tasks.count {task -> !task.done && !task.dateConfirmed}
+    val upcoming=data.tasks.count {task -> !task.done && due(task)?.let {!it.isBefore(today) && !it.isAfter(today.plusDays(3))}==true}
+    val urgent=data.tasks.count {task -> !task.done && (
+        task.title.contains("فوری") || task.rationale.contains("فوری") || due(task)?.isBefore(today)==true
+    )}
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        item {Hero("پرونده‌ها روشن‌تر،\nپیگیری‌ها منظم‌تر.","${fa(PersianDates.display(today))} • اطلاعات دفتر، یک‌جا و امن") {
-            Button(onClick=receive,colors=ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.secondaryContainer,contentColor=MaterialTheme.colorScheme.onSecondaryContainer)) {Icon(Icons.Outlined.Sync,null);Spacer(Modifier.width(8.dp));Text("دریافت و تطبیق ثنا")}
+        item {Hero("پرونده‌ها روشن‌تر،\\nپیگیری‌ها منظم‌تر.","${fa(PersianDates.display(today))} • پایش / دستیار پرونده و پیگیری") {
+            Button(onClick=receive,colors=ButtonDefaults.buttonColors(containerColor=MaterialTheme.colorScheme.secondaryContainer,contentColor=MaterialTheme.colorScheme.onSecondaryContainer)) {
+                Icon(Icons.Outlined.Sync,null);Spacer(Modifier.width(8.dp));Text("دریافت و تطبیق ثنا")
+            }
         }}
-        item {SectionTitle("نمای کلی دفتر","همه اعداد از داده ذخیره‌شده")}
-        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("پرونده دریافت‌شده",data.cases.size,Icons.Outlined.FolderOpen,Modifier.weight(1f)){navigate("cases")};Metric("بررسی‌نشده در پایش",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}}}
-        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {Metric("موعد نزدیک یا گذشته",near,Icons.Outlined.Event,Modifier.weight(1f)){navigate("tasks")};Metric("تطبیق دقیق شناسه",exact,Icons.Outlined.JoinInner,Modifier.weight(1f)){navigate("notices")}}}
-        item {SectionTitle("میز پیگیری","بررسی دستی از نتیجه تطبیق جداست")}
-        if(data.notices.isEmpty()) item {EmptyPanel("هیچ ابلاغیه‌ای در پایش ثبت نشده","این وضعیت به‌هیچ‌وجه نشان نمی‌دهد کارتابل ثنا خالی است. تا وقتی گزارش دریافت موفق و تعداد رکوردهای واردشده را بررسی نکرده‌اید، ثنا را مستقلاً کنترل کنید.",Icons.Outlined.Inbox)}
+        item {SectionTitle("گزارش آمادگی دفتر","فقط شمارش موارد ذخیره‌شده در پایش؛ به‌روز بودن ثنا جداگانه بررسی شود")}
+        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+            Metric("ابلاغ بررسی‌نشده",data.notices.count {!it.reviewed},Icons.Outlined.MarkEmailUnread,Modifier.weight(1f)){navigate("notices")}
+            Metric("پیگیری عقب‌افتاده",overdue,Icons.Outlined.EventBusy,Modifier.weight(1f)){navigate("tasks")}
+        }}
+        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+            Metric("پیگیری مبهم نیاز به شفافیت",ambiguous,Icons.Outlined.HelpOutline,Modifier.weight(1f)){navigate("tasks")}
+            Metric("پیگیری طی ۳ روز آینده",upcoming,Icons.Outlined.Event,Modifier.weight(1f)){navigate("tasks")}
+        }}
+        item {Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+            Metric("پیگیری فوری",urgent,Icons.Outlined.PriorityHigh,Modifier.weight(1f)){navigate("tasks")}
+            Spacer(Modifier.weight(1f))
+        }}
+        item {SectionTitle("ابلاغ‌های ذخیره‌شده","وضعیت بررسی در این فهرست داخلی است")}
+        if(data.notices.isEmpty()) item {
+            EmptyPanel("هیچ ابلاغیه‌ای در پایش ثبت نشده","این وضعیت به‌هیچ‌وجه نشان نمی‌دهد کارتابل ثنا خالی است. تا وقتی گزارش دریافت موفق و تعداد رکوردهای واردشده را بررسی نکرده‌اید، ثنا را مستقلاً کنترل کنید.",Icons.Outlined.Inbox)
+        }
         items(data.notices.filter {!it.reviewed}.take(3),key={it.id}) {record->RecordTile(record,data){detail(record)}}
         item {OutlinedButton(onClick={navigate("tasks")},modifier=Modifier.fillMaxWidth()){Text("همه پیگیری‌ها و پیش‌نویس‌ها")}}
-        item {Text("تطبیق شناسه، اثبات کفایت حقوقی اقدام نیست. محاسبه موعد نیازمند تاریخ مبنا و تأیید تقویم وکیل است.",style=MaterialTheme.typography.bodySmall)}
     }
 }
 

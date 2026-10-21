@@ -86,6 +86,22 @@ data class WorkItem(
     }
 }
 
+data class EvidenceDocument(
+    val id: String,
+    val title: String,
+    val text: String,
+    val source: String = "local-document",
+    val createdAt: Long = System.currentTimeMillis()
+) {
+    fun json(): JSONObject = JSONObject().put("id",id).put("title",title).put("text",text).put("source",source).put("createdAt",createdAt)
+    companion object {
+        fun create(title:String,text:String,source:String="local-document"):EvidenceDocument {
+            val at=System.currentTimeMillis()
+            return EvidenceDocument(identity("evidence:$at:$title:$text"),title.ifBlank { "سند بارگذاری‌شده" },text,source,at)
+        }
+        fun from(json:JSONObject) = EvidenceDocument(json.getString("id"),json.optString("title","سند بارگذاری‌شده"),json.optString("text"),json.optString("source","local-document"),json.optLong("createdAt",System.currentTimeMillis()))
+    }
+}
 enum class MatchLevel { MISSING_IDENTITY, MISSING_CASE, CASE_ONLY, EXACT, ACTION_RECORDED, CONFLICT, MANUAL }
 data class Reconciliation(val level: MatchLevel, val title: String, val reason: String, val evidence: List<String> = emptyList(), val caseNumber: String = "")
 

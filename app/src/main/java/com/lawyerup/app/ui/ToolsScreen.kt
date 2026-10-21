@@ -150,11 +150,16 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
                     },modifier=Modifier.weight(1f)) {Text("ذخیره متن در کلیپ‌بورد")}
                     OutlinedButton(onClick={tool="clipboard"},modifier=Modifier.weight(1f)) {Text("کلیپ‌بورد")}
                 }
+                Text("حتی اگر شماره پرونده یا ابلاغیه در سند وجود نداشته باشد، متن به مخزن اسناد برای تحلیل اضافه می‌شود؛ تطبیق با پرونده مشخص فقط با شناسه مستند ممکن است.",style=MaterialTheme.typography.bodySmall)
                 Button(enabled=!busy&&importedText.isNotBlank(),onClick={
                     val record=Extraction.fromDocument(importedText,kind)
-                    if(record==null)model.message.value="شناسه یکتا با عنوان شماره پرونده/ابلاغیه پیدا نشد؛ متن را اصلاح کنید"
-                    else model.perform {model.repository.importRecords(listOf(record));model.message.value="سند بازبینی‌شده ثبت شد؛ متن OCR حفظ شد"}
-                }){Text("متن و شناسه‌ها را تأیید و ثبت می‌کنم")}
+                    val evidence=EvidenceDocument.create("سند OCR",importedText,"local-ocr")
+                    model.perform {
+                        if(record!=null) model.repository.importRecords(listOf(record))
+                        model.repository.saveEvidence(evidence)
+                        model.message.value=if(record==null) "متن سند برای تحلیل ذخیره شد؛ شناسه یکتا از متن احراز نشد" else "متن سند و شناسه مستند ذخیره شد؛ OCR حفظ شد"
+                    }
+                }){Text("ذخیره سند برای تحلیل پرونده")}
             }
             "clipboard" -> {
                 Text("کلیپ‌بورد داخلی",style=MaterialTheme.typography.titleLarge)
@@ -202,7 +207,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
                 ToolButton("قرارداد و محاسبات","چک‌لیست اختیارات و نرخ‌های تأییدشده"){tool="powers"}
                 ToolButton("آماده‌سازی ضمائم","تبدیل تصویر به PDF با سقف حجم"){tool="convert"}
                 ToolButton("مرجع دعاوی و مستندات","داده مرجع پیوست؛ نیازمند کنترل قانون جاری"){navigate("library")}
-                ToolButton("تطبیق متن با مرجع","پیشنهاد کلیدواژه‌ای؛ نه نظر قطعی حقوقی"){navigate("matcher")}
+                ToolButton("تحلیل پرونده","کشف پیوندهای شناسه، تاریخ، مواد قانونی و اسناد ذخیره‌شده"){navigate("matcher")}
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
                 Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر (تقریباً هر ۱۲ ساعت)",Modifier.padding(8.dp))}
                 Text("یادآور پس‌زمینه، داده ذخیره‌شده را بررسی می‌کند؛ بدون نشست معتبر، ورود ثنا یا دریافت جدید را جعل نمی‌کند.",style=MaterialTheme.typography.bodySmall)
@@ -229,11 +234,20 @@ private fun CalendarTool(save:(WorkItem)->Unit) {
     Text("تقویم و فرصت‌های مشروط",style=MaterialTheme.typography.titleLarge)
     Text("مدت‌ها از توضیحات ضمیمه به‌عنوان قانون قطعی وارد نشده‌اند. مدت و تاریخ ابلاغ را از متن معتبر پرونده تعیین کنید؛ تعطیلات کامل و شرایط خاص را خودتان تأیید کنید.")
     listOf("روزشمار","ارزیابی شش‌ماهه","جلسه اول / فرصت مشروط").forEach {label->FilterChip(mode==label,{mode=label;calculated=null;confirmed=false},label={Text(label)})}
-    OutlinedTextField(title,{title=it},label={Text("عنوان و مستند / شرط فرصت")},modifier=Modifier.fillMaxWidth())
+    Text(
+        when(mode) {
+            "روزشمار" -> "روزشمار: تعداد روزهای مهلت را فقط از قانون یا تصمیم معتبر پرونده وارد کنید. تاریخ پایان پیشنهادی است؛ تعطیلات رسمی و قواعد خاص باید جداگانه بررسی شوند."
+            "ارزیابی شش‌ماهه" -> "شش ماه تقویمی از تاریخ مبنا محاسبه می‌شود. فقط زمانی استفاده کنید که قانون حاکم واقعاً دوره شش‌ماهه مقرر کرده باشد؛ این گزینه به‌تنهایی مهلت قانونی را تشخیص نمی‌دهد."
+            else -> "جلسه اول / فرصت مشروط: برای ساخت یادآور جلسه، رویداد یا موعد وابسته به شرط استفاده کنید. تاریخ ثبت‌شده یادآور است و تحقق شرط یا شروع مهلت قانونی را ثابت نمی‌کند."
+        },
+        style=MaterialTheme.typography.bodySmall,
+        color=MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    OutlinedTextField(title,{title=it},label={Text("عنوان پیگیری و مستند قانونی/قراردادی")},modifier=Modifier.fillMaxWidth())
     OutlinedTextField(date,{date=it;calculated=null;confirmed=false},label={Text("تاریخ مبنا شمسی؛ ۱۴۰۵/۰۷/۲۳")},modifier=Modifier.fillMaxWidth())
     if(mode=="روزشمار") {
         OutlinedTextField(days,{days=it;calculated=null},label={Text("مدت معتبر؛ روز")},modifier=Modifier.fillMaxWidth())
-        Row {Checkbox(actionDay,{actionDay=it;calculated=null});Text("روز اقدام هم جزو مدت حساب نشود",Modifier.padding(top=12.dp))}
+        Row {Checkbox(actionDay,{actionDay=it;calculated=null});Text("تاریخ مبنا در شمارش روزها لحاظ نشود",Modifier.padding(top=12.dp))}
         OutlinedTextField(holidays,{holidays=it;calculated=null;confirmed=false},label={Text("تعطیلات شمسی؛ هر خط یک تاریخ")},modifier=Modifier.fillMaxWidth())
     }
     Button(onClick={
@@ -245,11 +259,11 @@ private fun CalendarTool(save:(WorkItem)->Unit) {
                 else -> {calculated=start;output="یادآور تاریخ رویداد؛ تحقق شرط، پایان جلسه و وضعیت قطعیت باید توسط وکیل بررسی شود."}
             }
         }.onFailure {calculated=null;output="تاریخ، مدت یا فهرست تعطیلات معتبر نیست"}
-    }){Text("محاسبه پیشنهادی")}
+    }){Text("محاسبه تاریخ پیشنهادی")}
     Text(output)
     calculated?.let {result->
         Badge("تاریخ پیشنهادی: ${fa(PersianDates.display(result))}")
-        Row {Checkbox(confirmed,{confirmed=it});Text("مبنا، شرایط و تعطیلات را تأیید می‌کنم",Modifier.padding(top=12.dp))}
+        Row {Checkbox(confirmed,{confirmed=it});Text("قانون، تاریخ مبنا، تعطیلات و شرایط این پرونده را بررسی کردم",Modifier.padding(top=12.dp))}
         Button(enabled=confirmed&&title.isNotBlank(),onClick={save(WorkItem(identity("manual:${System.currentTimeMillis()}"),"",title,"$output\nمبنا: $date؛ نوع: $mode",result.toString(),true));output="پیگیری ذخیره شد"}){Text("ثبت موعد تأییدشده")}
     }
 }

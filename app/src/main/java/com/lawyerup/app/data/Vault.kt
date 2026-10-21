@@ -70,7 +70,7 @@ class CryptoBox : TextCipher {
     }
 }
 
-data class Workspace(val records: List<CourtRecord> = emptyList(), val tasks: List<WorkItem> = emptyList(), val reports: List<JSONObject> = emptyList()) {
+data class Workspace(val records: List<CourtRecord> = emptyList(), val tasks: List<WorkItem> = emptyList(), val reports: List<JSONObject> = emptyList(), val evidence: List<EvidenceDocument> = emptyList()) {
     val cases get() = records.filter { it.kind == RecordKind.CASE }
     val notices get() = records.filter { it.kind == RecordKind.NOTICE }
 }
@@ -81,15 +81,17 @@ class WorkspaceRepository(context: Context, private val database: VaultDatabase 
         val records = mutableListOf<CourtRecord>()
         val tasks = mutableListOf<WorkItem>()
         val reports = mutableListOf<JSONObject>()
+        val evidence = mutableListOf<EvidenceDocument>()
         rows.forEach { row ->
             val json = JSONObject(crypto.open(row.payload, row.id))
             when(row.kind) {
                 "record" -> records.add(CourtRecord.from(json))
                 "task" -> tasks.add(WorkItem.from(json))
                 "report" -> reports.add(json)
+                "evidence" -> evidence.add(EvidenceDocument.from(json))
             }
         }
-        return Workspace(records, tasks, reports)
+        return Workspace(records, tasks, reports, evidence)
     }
     fun watch(): Flow<Workspace> = dao.watch().map(::decode)
     suspend fun snapshot(): Workspace = decode(dao.all())
@@ -158,6 +160,12 @@ class WorkspaceRepository(context: Context, private val database: VaultDatabase 
         require(!task.done || task.receipt.isNotBlank()) { "برای ثبت انجام اقدام، یادداشت یا رسید لازم است" }
         dao.put(listOf(row(task.id, "task", task.copy(updatedAt = System.currentTimeMillis()).json())))
     }
+    suspend fun saveEvidence(document: EvidenceDocument) = database.withTransaction {
+        require(document.text.isNotBlank()) { "متن سند خالی است" }
+        require(document.id.matches(Regex("[a-f0-9]{64}"))) { "شناسه سند معتبر نیست" }
+        dao.put(listOf(row(document.id, "evidence", document.json())))
+    }
+
     suspend fun report(report: SyncReport, host: String) {
         val json = JSONObject().put("at", System.currentTimeMillis()).put("ok", report.success)
             .put("pages", report.pages).put("accepted", report.accepted).put("changed", report.changed)
@@ -167,7 +175,8 @@ class WorkspaceRepository(context: Context, private val database: VaultDatabase 
     suspend fun export(): String {
         val data = snapshot()
         return JSONObject().put("format", 1).put("records", JSONArray(data.records.map { it.json() }))
-            .put("tasks", JSONArray(data.tasks.map { it.json() })).toString()
+            .put("tasks", JSONArray(data.tasks.map { it.json() }))
+            .put("evidence", JSONArray(data.evidence.map { it.json() })).toString()
     }
     suspend fun restore(text: String) = database.withTransaction {
         require(text.length <= 20_000_000)
@@ -175,7 +184,8 @@ class WorkspaceRepository(context: Context, private val database: VaultDatabase 
         require(json.getInt("format") == 1)
         val records = json.getJSONArray("records")
         val tasks = json.getJSONArray("tasks")
-        require(records.length() <= 20000 && tasks.length() <= 50000)
+        val evidence = json.optJSONArray("evidence") ?: JSONArray()
+        require(records.length() <= 20000 && tasks.length() <= 50000 && evidence.length() <= 50000)
         val parsed = (0 until records.length()).map { CourtRecord.from(records.getJSONObject(it)) }
         parsed.forEach { require((if(it.kind == RecordKind.NOTICE) it.noticeNumber else it.caseNumber).matches(Regex("[0-9]{16,20}"))) }
         val newer = parsed.filter { record ->
@@ -186,6 +196,13 @@ class WorkspaceRepository(context: Context, private val database: VaultDatabase 
         (0 until tasks.length()).map { WorkItem.from(tasks.getJSONObject(it)) }.forEach { task ->
             val current = dao.get(task.id)?.let { WorkItem.from(JSONObject(crypto.open(it.payload, it.id))) }
             if(current == null || current.updatedAt < task.updatedAt) saveTask(task)
+        }
+        (0 until evidence.length()).map { EvidenceDocument.from(evidence.getJSONObject(it)) }.forEach { document ->
+            require(document.id.matches(Regex("[a-f0-9]{64}")))
+            val current = dao.get(document.id)?.let { EvidenceDocument.from(JSONObject(crypto.open(it.payload, it.id))) }
+            if(current == null || current.createdAt < document.createdAt) {
+                dao.put(listOf(row(document.id, "evidence", document.json())))
+            }
         }
     }
 }
