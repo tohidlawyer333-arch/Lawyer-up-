@@ -10,11 +10,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.lawyerup.app.domain.*
 import com.lawyerup.app.data.WorkspaceRepository
+import com.lawyerup.app.security.SanaCredentialVault
 import kotlinx.coroutines.*
 import kotlin.coroutines.resume
 
 class PortalController(context: Context, private val repository: WorkspaceRepository) {
-    var status by mutableStateOf("ورود به سامانه را خودتان تکمیل کنید؛ رمز در برنامه ذخیره نمی‌شود")
+    var status by mutableStateOf("ورود به سامانه را خودتان تکمیل کنید؛ رمز موقت ذخیره نمی‌شود")
         private set
     var loading by mutableStateOf(false)
         private set
@@ -93,6 +94,74 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
         if(busy || !officialUrl(location)) return
         view.loadUrl(location)
     }
+    fun fillSanaCredentials() {
+        val credentials = SanaCredentialVault.load(context)
+        if (credentials == null) {
+            status = "مشخصات ورود رمزگذاری‌شده ذخیره نشده است؛ ابتدا از تنظیمات پایش ذخیره کنید."
+            return
+        }
+        val encoded = org.json.JSONObject()
+            .put("nationalCode", credentials.nationalCode)
+            .put("personalPassword", credentials.personalPassword)
+            .toString()
+        val script = """
+            (function () {
+              const credentials = §CREDENTIALS_JSON§;
+              let nationalCount = 0, passwordCount = 0;
+              const normalize = value => String(value || '').replace(/[\\u200c\\u200e\\u200f]/g,' ')
+                .replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/\\s+/g,' ').trim().toLowerCase();
+              function apply(doc) {
+                if (!doc) return;
+                const inputs = Array.from(doc.querySelectorAll('input')).filter(input => {
+                  const style = doc.defaultView.getComputedStyle(input);
+                  return style.display !== 'none' && style.visibility !== 'hidden' && !input.disabled && !input.readOnly;
+                });
+                function meta(input) {
+                  const labels = input.labels ? Array.from(input.labels).map(node => node.innerText || node.textContent || '').join(' ') : '';
+                  return normalize([
+                    input.name,input.id,input.placeholder,input.getAttribute('aria-label'),
+                    input.getAttribute('autocomplete'),labels,input.parentElement && (input.parentElement.innerText || input.parentElement.textContent)
+                  ].filter(Boolean).join(' '));
+                }
+                const national = inputs.find(input => input.type !== 'password' && /کد ملی|کدملی|شناسه ملی|نام کاربری|username|national.?id|national.?code/.test(meta(input)));
+                const password = inputs.find(input => input.type === 'password' &&
+                  /password|رمز شخصی|رمز عبور/.test(meta(input)) &&
+                  !/otp|one.?time|رمز موقت|یک.?بار.?مصرف|captcha|verification|تأیید/.test(meta(input)));
+                function setValue(input,value) {
+                  if(!input) return false;
+                  const proto = input.tagName === 'TEXTAREA' ? doc.defaultView.HTMLTextAreaElement.prototype : doc.defaultView.HTMLInputElement.prototype;
+                  const descriptor = Object.getOwnPropertyDescriptor(proto,'value');
+                  if(descriptor && descriptor.set) descriptor.set.call(input,value); else input.value=value;
+                  input.dispatchEvent(new doc.defaultView.Event('input',{bubbles:true}));
+                  input.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));
+                  return true;
+                }
+                if(setValue(national,credentials.nationalCode)) nationalCount++;
+                if(setValue(password,credentials.personalPassword)) passwordCount++;
+                for(const frame of doc.querySelectorAll('iframe,frame')) {
+                  try { if(frame.contentDocument) apply(frame.contentDocument); } catch(_) {}
+                }
+              }
+              apply(document);
+              return JSON.stringify({national:nationalCount,password:passwordCount});
+            })()
+        """.trimIndent().replace("__CREDENTIALS_JSON__", encoded)
+        view.evaluateJavascript(script) { raw ->
+            val result = runCatching {
+                val returned = org.json.JSONTokener(raw).nextValue() as? String ?: return@runCatching null
+                org.json.JSONObject(returned)
+            }.getOrNull()
+            val nationalFilled = (result?.optInt("national") ?: 0) > 0
+            val passwordFilled = (result?.optInt("password") ?: 0) > 0
+            status = when {
+                nationalFilled && passwordFilled -> "کد ملی و رمز شخصی در فرم پیدا و پر شدند؛ مقدارها را بررسی کنید و خودتان ادامه ورود را انجام دهید. رمز موقت ذخیره یا ارسال نشده است."
+                nationalFilled -> "کد ملی در فرم پر شد؛ فیلد رمز شخصی قابل‌تشخیص نبود. هیچ ورود یا ارسالی انجام نشد."
+                passwordFilled -> "فیلد رمز شخصی پر شد؛ فیلد کد ملی قابل‌تشخیص نبود. هیچ ورود یا ارسالی انجام نشد."
+                else -> "فیلدهای ورود قابل‌تشخیص نبودند؛ صفحه ورود رسمی را باز کنید. هیچ داده‌ای ارسال نشد."
+            }
+        }
+    }
+
     fun cancel() { cancelled = true }
     fun dismissDownload() { pendingDownload=null }
     suspend fun download(): ByteArray {
