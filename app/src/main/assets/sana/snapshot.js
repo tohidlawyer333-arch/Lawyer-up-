@@ -21,8 +21,18 @@
       return dateValue || (labeledDateInput && value.length>0);
     });
     if(visibleDateFilter) dateFilterPresent = true;
-    const candidateHeading = [...doc.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading],.nav-link.active,.active")].filter(visible).map(text).find(value =>
-      /ابلاغیه/.test(value) && /(مشاهده[\s\u200c]*شده|مشاهده[\s\u200c]*نشده|باز[\s\u200c]*نشده|جدید)/.test(value));
+    const localDateValues = [...doc.querySelectorAll('input')]
+      .filter(visible)
+      .map(input => normalize(input.value || input.getAttribute('value') || '').trim())
+      .filter(value => /^(?:13|14|20)\d{2}[\/.-]\d{1,2}[\/.-]\d{1,2}$/.test(value));
+    if(localDateValues.length >= 2 && (doc === document || !result.pagination.fromDate)) {
+      result.pagination.fromDate = localDateValues[0];
+      result.pagination.toDate = localDateValues[1];
+    }
+    const isListHeading = value => /ابلاغیه/.test(value) && /(مشاهده[\s\u200c]*(?:شده|نشده)|باز[\s\u200c]*نشده|جدید)/.test(value);
+    const pageHeading = [...doc.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading]")].filter(visible).map(text).find(isListHeading);
+    const selectedTab = [...doc.querySelectorAll(".nav-link.active,.active,[aria-current=page]")].filter(visible).map(text).find(isListHeading);
+    const candidateHeading = pageHeading || selectedTab;
     if(candidateHeading) noticeHeading = candidateHeading;
     if([...doc.querySelectorAll('input[type=password]')].some(visible)) result.login = true;
     if([...doc.querySelectorAll('[aria-busy=true],.k-loading-mask')].some(visible)) result.loading = true;
