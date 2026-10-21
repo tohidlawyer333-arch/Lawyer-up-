@@ -228,7 +228,7 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
         } finally { busy = false }
     }
 
-    fun diagnostic(): String = org.json.JSONObject().put("version", "2.1.1").put("host", runCatching { java.net.URI(url).host }.getOrNull())
+    fun diagnostic(): String = org.json.JSONObject().put("version", "2.1.2").put("host", runCatching { java.net.URI(url).host }.getOrNull())
         .put("busy", busy).put("loading", loading).put("pageError", failed).put("adapter", lastPage?.adapter)
         .put("rows", lastPage?.rows?.size).put("pagination", lastPage?.paging).put("blockedFrames", lastPage?.blockedFrames)
         .put("headings", org.json.JSONArray(lastPage?.rows?.flatMap { it.keys }?.distinct().orEmpty())).toString(2)
