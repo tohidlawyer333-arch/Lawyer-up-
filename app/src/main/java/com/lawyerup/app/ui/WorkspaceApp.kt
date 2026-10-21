@@ -106,6 +106,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
                 "portal" -> portal?.let {PortalScreen(it,{all->scope.launch {it.sync(all)}},{page="health"})}
                 "health" -> HealthScreen(data,portal,::openPortal)
                 "library" -> if(claimId==null) ClaimsListScreen(law){claimId=it} else Column {TextButton(onClick={claimId=null}){Text("بازگشت به مرجع")};AuthorityDetailScreen(law,claimId!!)}
+                "legal" -> OfficialLegalCatalogScreen { page="tools" }
                 "matcher" -> CaseMatcherScreen(law,data)
                 else -> ToolsScreen(model,{page=it},::openPortal,themeChoice,onThemeChange)
             }
@@ -174,6 +175,24 @@ fun Metric(title:String,value:Int,icon:ImageVector,modifier:Modifier,onClick:()-
 
 @Composable
 fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
+    val context=LocalContext.current
+    val exportScope=rememberCoroutineScope()
+    var exportPayload by remember {mutableStateOf("")}
+    var exportStatus by remember {mutableStateOf("")}
+    val saveExport=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) {uri->
+        if(uri!=null) {
+            val payload=exportPayload
+            exportScope.launch {
+                runCatching {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(payload) }
+                            ?: error("مسیر ذخیره فایل باز نشد")
+                    }
+                }.onSuccess { exportStatus="گزارش متنی ذخیره شد؛ برای چاپ، فایل را باز کنید." }
+                 .onFailure { exportStatus="ذخیره گزارش ناموفق بود." }
+            }
+        }
+    }
     var query by rememberSaveable {mutableStateOf("")}
     var filter by rememberSaveable {mutableStateOf("همه")}
     val filtered=(if(notices)data.notices else data.cases).filter {record ->
@@ -191,6 +210,37 @@ fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
     val subtitle=if(notices && filter=="۲۰ مشاهده‌شده اخیر در ثنا") "۲۰ مورد آخر از فهرست مشاهده‌شده‌های دریافت‌شده از ثنا؛ دریافت ناقص یا فیلتر تاریخ می‌تواند سابقه را محدود کند" else "جست‌وجو در داده‌های ذخیره‌شده؛ صفر به‌معنای خالی بودن کارتابل ثنا نیست"
     LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         item {SectionTitle(if(notices)"ابلاغیه‌ها" else "اطلاع‌رسانی پرونده‌ها","${fa(records.size)} مورد • $subtitle")}
+        item {
+            OutlinedButton(onClick={
+                exportPayload=buildString {
+                    appendLine(if(notices) "گزارش ابلاغیه‌های ذخیره‌شده در پایش" else "گزارش پرونده‌های ذخیره‌شده در پایش")
+                    appendLine("گزارش تنها شامل داده‌های ذخیره‌شده است؛ کامل‌بودن کارتابل ثنا را اثبات نمی‌کند.")
+                    appendLine("تاریخ تهیه: "+java.time.Instant.now().atZone(ZoneId.of("Asia/Tehran")).toLocalDateTime())
+                    appendLine()
+                    records.forEachIndexed { index, record ->
+                        val date=record.fields.entries.firstOrNull { it.key.contains("تاریخ ابلاغ") }?.value
+                            ?: record.fields.entries.firstOrNull { it.key.contains("تاریخ صدور") }?.value.orEmpty()
+                        val branch=record.fields.entries.firstOrNull { it.key.contains("شعبه") || it.key.contains("صادر کننده") || it.key.contains("صادرکننده") }?.value.orEmpty()
+                        val topic=record.fields.entries.firstOrNull { it.key.contains("موضوع ابلاغیه") || it.key.contains("موضوع پرونده") }?.value ?: record.subject
+                        val source=record.fields.entries.firstOrNull { it.key=="فهرست مبدأ ثنا" }?.value.orEmpty()
+                        appendLine((index+1).toString()+". "+if(notices) "ابلاغیه" else "پرونده")
+                        appendLine("تاریخ ابلاغ/صدور: "+date.ifBlank { "در داده دریافت‌شده درج نشده" })
+                        appendLine("شماره ابلاغ: "+record.noticeNumber.ifBlank { "در داده دریافت‌شده موجود نیست" })
+                        appendLine("شماره پرونده: "+record.caseNumber.ifBlank { "در داده دریافت‌شده موجود نیست" })
+                        appendLine("شعبه/صادرکننده: "+branch.ifBlank { "در داده دریافت‌شده موجود نیست" })
+                        appendLine("موضوع: "+topic.ifBlank { "در داده دریافت‌شده موجود نیست" })
+                        appendLine("فهرست مبدأ ثنا: "+source.ifBlank { "ثبت نشده" })
+                        appendLine("تاریخ ورود به پایش: "+java.time.Instant.ofEpochMilli(record.importedAt).atZone(ZoneId.of("Asia/Tehran")).toLocalDateTime())
+                        appendLine("وضعیت بررسی داخلی پایش: "+if(record.reviewed) "بررسی‌شده" else "بررسی‌نشده")
+                        appendLine("متن ذخیره‌شده: "+record.text.ifBlank { "متن کامل در مخزن دریافت نشده است" })
+                        appendLine("------------------------------------------------------------")
+                    }
+                }
+                exportStatus=""
+                saveExport.launch(if(notices) "گزارش-ابلاغیه-های-پایش.txt" else "گزارش-پرونده-های-پایش.txt")
+            },modifier=Modifier.fillMaxWidth()) { Text("ذخیره گزارش TXT برای بایگانی یا چاپ") }
+            if(exportStatus.isNotBlank()) Text(exportStatus,style=MaterialTheme.typography.bodySmall)
+        }
         item {OutlinedTextField(value=query,onValueChange={query=it},label={Text("شماره، شعبه یا موضوع")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true)}
         if(notices) item {Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {listOf("همه","بررسی‌نشده در پایش","تطبیق دقیق","بررسی‌شده در پایش","۲۰ مشاهده‌شده اخیر در ثنا").forEach {label->FilterChip(selected=label==filter,onClick={filter=label},label={Text(label)})}}}
         if(records.isEmpty()) item {EmptyPanel("موردی پیدا نشد","بررسی کنید که فهرست درست را در ثنا باز کرده و دریافت موفق با تعداد رکوردهای معتبر ثبت شده باشد.",Icons.Outlined.ManageSearch)}
@@ -298,9 +348,9 @@ fun PortalScreen(controller:PortalController,sync:(Boolean)->Unit,health:()->Uni
             Button(onClick={sync(all)},enabled=!controller.busy&&!controller.loading,modifier=Modifier.weight(1f)){Text("دریافت و تطبیق")}
             if(controller.busy) OutlinedButton(onClick=controller::cancel){Text("توقف")}
         }
-        Text("بازکردن ابلاغ جدید می‌تواند آثار حقوقی داشته باشد؛ برنامه متن ابلاغ‌ها را خودکار باز نمی‌کند.",Modifier.padding(12.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.error)
+        Text("پایش ابلاغیه‌ای را خودکار باز نمی‌کند. لمس «مشاهده» در سامانه رسمی ممکن است وضعیت ثنا را تغییر دهد؛ پیش از ادامه، پیام تأیید نمایش داده می‌شود.",Modifier.padding(8.dp),style=MaterialTheme.typography.labelSmall,color=MaterialTheme.colorScheme.error)
         if(controller.busy||controller.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-        AndroidView(factory={(controller.view.parent as? ViewGroup)?.removeView(controller.view);controller.view},modifier=Modifier.fillMaxWidth().weight(1f),update={it.setOnTouchListener {_,_->controller.busy}})
+        AndroidView(factory={(controller.view.parent as? ViewGroup)?.removeView(controller.view);controller.view},modifier=Modifier.fillMaxWidth().weight(1f,fill=true).heightIn(min=240.dp),update={it.setOnTouchListener {_,_->controller.busy}})
     }
     if(controller.pendingDownload!=null) AlertDialog(onDismissRequest=controller::dismissDownload,title={Text("دریافت PDF از سامانه رسمی؟")},text={Text("فایل با نشست فعلی شما دریافت و در محل انتخابی ذخیره می‌شود. لینک و کوکی در گزارش ثبت نمی‌شوند.")},confirmButton={Button(enabled=!downloading,onClick={scope.launch {
         downloading=true
