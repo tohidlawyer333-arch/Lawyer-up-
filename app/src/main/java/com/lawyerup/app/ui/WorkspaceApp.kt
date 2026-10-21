@@ -232,6 +232,12 @@ fun RecordsScreen(data:Workspace,notices:Boolean,detail:(CourtRecord)->Unit) {
                         val branch=record.fields.entries.firstOrNull { it.key.contains("شعبه") || it.key.contains("صادر کننده") || it.key.contains("صادرکننده") }?.value.orEmpty()
                         val topic=record.fields.entries.firstOrNull { it.key.contains("موضوع ابلاغیه") || it.key.contains("موضوع پرونده") }?.value ?: record.subject
                         val source=record.fields.entries.firstOrNull { it.key=="فهرست مبدأ ثنا" }?.value.orEmpty()
+                        if(notices) {
+                            appendLine("خلاصه رویداد: طبق داده ذخیره‌شده در پایش، در تاریخ "+date.ifBlank { "نامشخص در داده دریافت‌شده" }+
+                                "، در پرونده "+record.caseNumber.ifBlank { "شماره پرونده در داده دریافت‌شده نیست" }+
+                                "، از شعبه "+branch.ifBlank { "صادرکننده در داده دریافت‌شده نیست" }+
+                                "، ابلاغ با موضوع "+topic.ifBlank { "موضوع در داده دریافت‌شده نیست" }+" ثبت/دریافت شده است.")
+                        }
                         appendLine((index+1).toString()+". "+if(notices) "ابلاغیه" else "پرونده")
                         appendLine("تاریخ ابلاغ/صدور: "+date.ifBlank { "در داده دریافت‌شده درج نشده" })
                         appendLine("شماره ابلاغ: "+record.noticeNumber.ifBlank { "در داده دریافت‌شده موجود نیست" })
