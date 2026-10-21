@@ -17,7 +17,8 @@
       ].filter(Boolean).join(' ');
       const value = normalize(input.value || input.getAttribute('value') || '').trim();
       const dateValue = /^(?:13|14|20)\d{2}[\/.-]\d{1,2}[\/.-]\d{1,2}$/.test(value);
-      return /از\s*تاریخ|تا\s*تاریخ|تاریخ|date/i.test(metadata) || dateValue;
+      const labeledDateInput = /از\s*تاریخ|تا\s*تاریخ|تاریخ|date/i.test(metadata);
+      return dateValue || (labeledDateInput && value.length>0);
     });
     if(visibleDateFilter) dateFilterPresent = true;
     const candidateHeading = [...doc.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading],.nav-link.active,.active")].filter(visible).map(text).find(value =>
