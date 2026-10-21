@@ -106,10 +106,10 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
             .toString()
         val script = """
             (function () {
-              const credentials = §CREDENTIALS_JSON§;
+              const credentials = __CREDENTIALS_JSON__;
               let nationalCount = 0, passwordCount = 0;
-              const normalize = value => String(value || '').replace(/[\\u200c\\u200e\\u200f]/g,' ')
-                .replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/\\s+/g,' ').trim().toLowerCase();
+              const normalize = value => String(value || '').replace(/[\u200c\u200e\u200f]/g,' ')
+                .replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/\s+/g,' ').trim().toLowerCase();
               function apply(doc) {
                 if (!doc) return;
                 const inputs = Array.from(doc.querySelectorAll('input')).filter(input => {
