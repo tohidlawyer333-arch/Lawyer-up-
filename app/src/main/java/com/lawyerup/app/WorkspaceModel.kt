@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.lawyerup.app.data.Workspace
 import com.lawyerup.app.data.WorkspaceRepository
 import com.lawyerup.app.domain.*
+import com.lawyerup.app.notifications.DeadlineReminderScheduler
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -28,7 +29,7 @@ class WorkspaceModel(application: Application): AndroidViewModel(application) {
         }
     }
     fun review(record: CourtRecord,value: Boolean)=perform { repository.review(record.id,value);message.value="وضعیت بررسی ذخیره شد؛ اقدامی در ثنا ثبت نشده است" }
-    fun save(task: WorkItem)=perform { repository.saveTask(task);message.value="پیگیری ذخیره شد" }
+    fun save(task: WorkItem)=perform { repository.saveTask(task);DeadlineReminderScheduler.schedule(getApplication(),task);message.value="پیگیری ذخیره شد" }
     fun draft(task: WorkItem)=perform {
         val record=workspace.value.records.find {it.id==task.recordId}
         repository.saveTask(task.copy(draft=ActionEngine.draft(task,record)))
