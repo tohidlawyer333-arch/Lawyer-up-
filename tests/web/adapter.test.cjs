@@ -44,6 +44,13 @@ test('date-filtered notice cards cannot be reported as complete history',()=>{
   assert.equal(result.pagination.dateFilterPresent,true);
   dom.window.close();
 });
+test('empty date controls are not mistaken for an active historical filter',()=>{
+  const dom=document('<h6>ابلاغیه‌های مشاهده شده</h6><label>از تاریخ <input value=""></label><label>تا تاریخ <input value=""></label>'+card(1,'200000000000000001'));
+  const result=read(dom);
+  assert.equal(result.pagination.state,'end');
+  assert.equal(result.pagination.dateFilterPresent,undefined);
+  dom.window.close();
+});
 test('last page of a date-filtered notice list is not the end of all history',()=>{
   const dom=document('<h6>ابلاغیه‌های مشاهده شده</h6><label>از تاریخ <input value="1405/06/29"></label><label>تا تاریخ <input value="1405/07/28"></label>'+card(1,'200000000000000001')+'<div class="pagination"><button disabled>بعدی</button></div>');
   assert.equal(read(dom).pagination.state,'filtered-end');
