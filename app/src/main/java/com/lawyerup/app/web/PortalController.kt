@@ -1,6 +1,7 @@
 package com.lawyerup.app.web
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.Context
 import android.net.http.SslError
 import android.webkit.*
@@ -54,6 +55,7 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
                 if(disposed) return
                 loading = false; this@PortalController.url = location
                 if(!failed && !busy) status = "پس از بازکردن فهرست، دریافت و تطبیق را بزنید"
+                if(officialUrl(location)) view.evaluateJavascript(interactionGuardScript, null)
                 CookieManager.getInstance().flush()
             }
             override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
@@ -64,6 +66,21 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
             }
             override fun onReceivedSslError(view: WebView, handler: SslErrorHandler, error: SslError) {
                 handler.cancel(); failed = true; loading = false; status = "گواهی امنیتی معتبر نیست؛ اتصال متوقف شد"
+            }
+        }
+        webChromeClient = object : WebChromeClient() {
+            override fun onJsConfirm(view: WebView?, url: String?, message: String?, result: JsResult?): Boolean {
+                val current = result ?: return false
+                val prefix = "PAYESH_CONFIRM_NOTICE:"
+                if(message?.startsWith(prefix) != true) return false
+                AlertDialog.Builder(context)
+                    .setTitle("تأیید بازکردن ابلاغیه")
+                    .setMessage(message.removePrefix(prefix).trim())
+                    .setNegativeButton("انصراف") { _, _ -> current.cancel() }
+                    .setPositiveButton("ادامه و بازکردن") { _, _ -> current.confirm() }
+                    .setOnCancelListener { current.cancel() }
+                    .show()
+                return true
             }
         }
         setDownloadListener { location, _, _, _, _ ->
@@ -123,7 +140,7 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
                 val page = read()
                 require(!page.login) { "ورود یا تمدید نشست لازم است" }
                 val imported = withContext(Dispatchers.IO) { repository.ingest(page) }
-                val complete = imported.accepted > 0 && imported.rejected == 0 && !page.truncated && page.blockedFrames == 0
+                val complete = imported.accepted > 0 && imported.rejected == 0 && !page.truncated && page.blockedFrames == 0 && page.paging == "end"
                 SyncReport(complete, 1, imported.accepted, imported.changed,
                     if(imported.accepted > 0) "${imported.accepted} ردیف معتبر؛ ${imported.rejected} ردیف ردشده؛ ${imported.changed} تغییر؛ فقط صفحه فعلی${if(!complete) "؛ دریافت کامل تأیید نشده است" else ""}" else "هیچ رکورد معتبری از صفحه فعلی استخراج نشد؛ این به معنی خالی بودن کارتابل نیست. گزارش ساختار و فیلترهای ثنا را بررسی کنید.", imported.rejected)
             }
@@ -139,6 +156,33 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
             status = "ذخیره گزارش ناموفق بود؛ دریافت کامل تأیید نشده است. سلامت حافظه را بررسی کنید"
         } finally { busy = false }
     }
+
+    private val interactionGuardScript = """
+        (function () {
+          if (window.__payeshNoticeGuardInstalled) return;
+          document.addEventListener('click', function (event) {
+            var control = event.target && event.target.closest('button,a,[role="button"],input[type="button"],input[type="submit"]');
+            if (!control) return;
+            var label = (control.innerText || control.textContent || control.value || '').replace(/\s+/g, ' ').trim();
+            if (!/^مشاهده(\s+ابلاغیه)?$/.test(label)) return;
+            var allowed = window.confirm('PAYESH_CONFIRM_NOTICE:بازکردن این ابلاغیه در سامانه رسمی ممکن است وضعیت آن را به «مشاهده‌شده» تغییر دهد. فقط در صورت آمادگی برای این تغییر ادامه بدهید.');
+            if (!allowed) {
+              event.preventDefault();
+              event.stopPropagation();
+              event.stopImmediatePropagation();
+            }
+          }, true);
+          var viewport = document.querySelector('meta[name="viewport"]');
+          if (!viewport) {
+            viewport = document.createElement('meta');
+            viewport.name = 'viewport';
+            document.head.appendChild(viewport);
+          }
+          viewport.content = 'width=device-width, initial-scale=1, maximum-scale=3, user-scalable=yes';
+          window.__payeshNoticeGuardInstalled = true;
+        })();
+    """.trimIndent()
+
     fun diagnostic(): String = org.json.JSONObject().put("version", "2.0.0").put("host", runCatching { java.net.URI(url).host }.getOrNull())
         .put("busy", busy).put("loading", loading).put("pageError", failed).put("adapter", lastPage?.adapter)
         .put("rows", lastPage?.rows?.size).put("pagination", lastPage?.paging).put("blockedFrames", lastPage?.blockedFrames)
