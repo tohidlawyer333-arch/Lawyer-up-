@@ -66,7 +66,10 @@ class Documents(private val context: Context) {
         try {
             check(engine.init(directory.parent, languages.joinToString("+"))) { "موتور OCR آماده نشد" }
             engine.setImage(bitmap)
-            return engine.utF8Text.orEmpty()
+            val recognized = engine.utF8Text.orEmpty()
+            return if(includeEnglish) recognized else recognized
+                .replace(Regex("[A-Za-z]+"), "")
+                .replace(Regex("[ \\t]{2,}"), " ")
         } finally { engine.recycle() }
     }
 
