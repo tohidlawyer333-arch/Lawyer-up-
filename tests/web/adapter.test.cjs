@@ -7,7 +7,6 @@ const asset = name => fs.readFileSync(path.join(__dirname,'../../app/src/main/as
 const snapshot = asset('snapshot.js');
 const next = asset('next.js');
 const noticeGuard = asset('notice_guard.js');
-const noticeGuard = asset('notice_guard.js');
 const card = (ordinal,number) => `<div class="card-table-row"><p>${ordinal}</p><p>شماره ابلاغیه: <span>${number}</span></p><p>تاریخ صدور: 1405/07/19</p><p>صادر کننده: شعبه نمونه</p><p>موضوع ابلاغیه: موضوع نمونه</p><button>مشاهده</button></div>`;
 function document(html) {
   const dom = new JSDOM(html,{url:'https://eblagh1.adliran.ir/ENotice/Index',runScripts:'outside-only'});
