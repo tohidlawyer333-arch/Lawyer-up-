@@ -51,7 +51,27 @@ class DomainTest {
     @Test fun cancelledBatchDoesNotRead()=runTest {var reads=0;val result=PaginationRunner().run({reads++;page()},{ImportReport(1,1,0)},{true},{true},{_,_->});assertFalse(result.success);assertEquals(0,reads)}
     @Test fun loginNeverStored()=runTest {var writes=0;val result=PaginationRunner().run({page().copy(login=true)},{writes++;ImportReport(1,1,0)},{true},{false},{_,_->});assertFalse(result.success);assertEquals(0,writes)}
     @Test fun truncatedListNotComplete()=runTest {assertFalse(PaginationRunner().run({page().copy(truncated=true)},{ImportReport(1,1,0)},{true},{false},{_,_->}).success)}
-    @Test fun zeroRowsNotSuccess()=runTest {assertFalse(PaginationRunner().run({page()},{ImportReport(0,0,1)},{true},{false},{_,_->}).success)}
+    @Test fun zeroRowsNotSuccess()=runTest {
+        val result=PaginationRunner().run({page()},{ImportReport(0,0,1)},{true},{false},{_,_->})
+        assertFalse(result.success)
+        assertEquals(1,result.pages)
+        assertEquals(1,result.rejected)
+        assertTrue(result.message.contains("ردشده: 1"))
+    }
+    @Test fun laterReadFailurePreservesPartialCounts()=runTest {
+        var reads=0
+        val result=PaginationRunner().run({
+            if(reads++==0) page(paging="next") else throw IllegalStateException("synthetic fixture")
+        },{ImportReport(1,1,0)},{true},{false},{_,_->})
+        assertFalse(result.success)
+        assertEquals(1,result.pages)
+        assertEquals(1,result.accepted)
+        assertEquals(1,result.changed)
+        assertTrue(result.message.contains("ردیف معتبر: 1"))
+        assertTrue(result.message.contains("IllegalStateException"))
+        assertTrue(result.message.contains("دریافت کامل تأیید نشده است"))
+    }
+
     @Test fun calendarRequiresConfirmation() {assertFalse(DeadlineEngine.calculate(LocalDate.of(2026,10,19),7,false,emptySet(),false).verified)}
     @Test fun holidayChainMovesEndOnly() {val start=LocalDate.of(2026,10,19);val result=DeadlineEngine.calculate(start,4,false,setOf(LocalDate.of(2026,10,24)),true);assertEquals(LocalDate.of(2026,10,25),result.tentative);assertEquals(2,result.shiftedDays)}
     @Test fun actionDayExclusionExplicit() {val start=LocalDate.of(2026,10,19);assertEquals(start.plusDays(8),DeadlineEngine.calculate(start,7,true,emptySet(),true,emptySet()).tentative)}
