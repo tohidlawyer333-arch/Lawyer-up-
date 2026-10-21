@@ -3,6 +3,7 @@ package com.lawyerup.app.domain
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URI
+import kotlinx.coroutines.CancellationException
 
 data class PageRead(val url: String, val rows: List<Map<String, String>>, val paging: String,
     val login: Boolean, val loading: Boolean, val blockedFrames: Int, val truncated: Boolean, val adapter: String)
@@ -77,42 +78,103 @@ data class ImportReport(val accepted: Int, val changed: Int, val rejected: Int)
 data class SyncReport(val success: Boolean, val pages: Int, val accepted: Int, val changed: Int, val message: String, val rejected: Int = 0)
 
 class PaginationRunner(private val limit: Int = 100) {
-    suspend fun run(read: suspend () -> PageRead, save: suspend (PageRead) -> ImportReport,
-        next: suspend () -> Boolean, cancelled: () -> Boolean, progress: (Int, Int) -> Unit): SyncReport {
+    suspend fun run(
+        read: suspend () -> PageRead,
+        save: suspend (PageRead) -> ImportReport,
+        next: suspend () -> Boolean,
+        cancelled: () -> Boolean,
+        progress: (Int, Int) -> Unit
+    ): SyncReport {
         var pages = 0
         var accepted = 0
         var changed = 0
         var rejected = 0
         val seen = mutableSetOf<String>()
         var source = ""
-        fun stop(reason: String) = SyncReport(false, pages, accepted, changed, "$reason؛ صفحه: $pages؛ ردیف معتبر: $accepted؛ ردشده: $rejected؛ تغییر: $changed. دریافت کامل تأیید نشده است", rejected)
-        while(pages < limit) {
-            if(cancelled()) return stop("دریافت متوقف شد")
-            val page = read()
-            if(cancelled()) return stop("دریافت متوقف شد")
-            if(!officialUrl(page.url)) return stop("نشانی غیرمجاز")
-            if(page.login) return stop("ورود یا تمدید نشست لازم است")
-            if(page.loading) return stop("بارگذاری کامل نشده است")
-            if(source.isEmpty()) source = safeSource(page.url)
-            if(source != safeSource(page.url)) return stop("مسیر فهرست تغییر کرد")
+
+        fun stop(reason: String) = SyncReport(
+            false, pages, accepted, changed,
+            "$reason؛ صفحه: $pages؛ ردیف معتبر: $accepted؛ ردشده: $rejected؛ تغییر: $changed. دریافت کامل تأیید نشده است",
+            rejected
+        )
+
+        while (pages < limit) {
+            if (cancelled()) return stop("دریافت متوقف شد")
+
+            val page = try {
+                read()
+            } catch (_: CancellationException) {
+                return stop("خواندن فهرست متوقف شد")
+            } catch (error: Exception) {
+                return stop("خواندن صفحه ناموفق بود (${error.javaClass.simpleName})")
+            }
+
+            if (cancelled()) return stop("دریافت متوقف شد")
+            if (!officialUrl(page.url)) return stop("نشانی غیرمجاز")
+            if (page.login) return stop("ورود یا تمدید نشست لازم است")
+            if (page.loading) return stop("بارگذاری کامل نشده است")
+
+            if (source.isEmpty()) source = safeSource(page.url)
+            if (source != safeSource(page.url)) return stop("مسیر فهرست تغییر کرد")
+
             val signature = identity(page.rows.toString())
-            if(!seen.add(signature)) return stop("صفحه تکراری است")
-            val report = save(page)
-            if(report.accepted == 0) return stop("هیچ رکورد معتبری خوانده نشد؛ این به معنی خالی بودن کارتابل نیست")
+            if (!seen.add(signature)) return stop("صفحه تکراری است")
+
+            val report = try {
+                save(page)
+            } catch (_: CancellationException) {
+                return stop("ذخیره صفحه متوقف شد")
+            } catch (error: Exception) {
+                return stop("ذخیره ردیف‌های این صفحه ناموفق بود (${error.javaClass.simpleName})")
+            }
+
+            // Count the attempted page and its rejected rows even when no valid identity was parsed.
             pages++
             accepted += report.accepted
             changed += report.changed
             rejected += report.rejected
-            progress(pages, accepted)
-            if(page.blockedFrames > 0 || page.truncated) return stop("بخشی از محتوا قابل خواندن نیست")
-            if(page.paging == "filtered" || page.paging == "filtered-end") {
-                return stop(if(page.paging == "filtered-end") "پایان نتایج همین بازه تاریخی؛ سوابق خارج از این بازه دریافت نشده‌اند" else "بازه تاریخی فعال است و صفحه‌بندی قابل تشخیص نیست؛ فقط همین بازه بررسی شد")
+            try {
+                progress(pages, accepted)
+            } catch (error: Exception) {
+                return stop("گزارش پیشرفت ناموفق بود (${error.javaClass.simpleName})")
             }
-            if(page.paging == "end") return SyncReport(rejected == 0, pages, accepted, changed, "$pages صفحه؛ $accepted ردیف معتبر؛ $changed تغییر؛ $rejected ردیف ردشده. پایان فهرست فعلی با فیلترهای سامانه شناسایی شد${if(rejected>0) "؛ ردیف‌های ردشده نیازمند بررسی‌اند" else ""}", rejected)
-            if(page.paging != "next") return stop("کنترل صفحه‌بندی قابل تشخیص نیست")
-            if(pages >= limit) return stop("سقف ایمنی صفحات رسید")
-            if(cancelled() || !next()) return stop("صفحه بعد دریافت نشد")
+
+            if (report.accepted == 0) {
+                return stop("هیچ رکورد معتبری خوانده نشد؛ این به معنی خالی بودن کارتابل نیست")
+            }
+            if (page.blockedFrames > 0 || page.truncated) return stop("بخشی از محتوا قابل خواندن نیست")
+
+            if (page.paging == "filtered" || page.paging == "filtered-end") {
+                return stop(
+                    if (page.paging == "filtered-end")
+                        "پایان نتایج همین بازه تاریخی؛ سوابق خارج از این بازه دریافت نشده‌اند"
+                    else
+                        "بازه تاریخی فعال است و صفحه‌بندی قابل تشخیص نیست؛ فقط همین بازه بررسی شد"
+                )
+            }
+
+            if (page.paging == "end") {
+                val complete = rejected == 0
+                val message = "$pages صفحه؛ $accepted ردیف معتبر؛ $changed تغییر؛ $rejected ردیف ردشده. " +
+                    if (complete) "پایان فهرست فعلی با فیلترهای سامانه شناسایی شد"
+                    else "پایان فهرست فعلی شناسایی شد، اما دریافت به علت ردیف‌های ردشده کامل تأیید نمی‌شود"
+                return SyncReport(complete, pages, accepted, changed, message, rejected)
+            }
+
+            if (page.paging != "next") return stop("کنترل صفحه‌بندی قابل تشخیص نیست")
+            if (pages >= limit) return stop("سقف ایمنی صفحات رسید")
+
+            val moved = try {
+                next()
+            } catch (_: CancellationException) {
+                return stop("رفتن به صفحه بعد متوقف شد")
+            } catch (error: Exception) {
+                return stop("رفتن به صفحه بعد ناموفق بود (${error.javaClass.simpleName})")
+            }
+
+            if (cancelled() || !moved) return stop("صفحه بعد دریافت نشد")
         }
+
         return stop("سقف ایمنی صفحات رسید")
     }
 }
