@@ -246,6 +246,12 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
     var exportText by remember { mutableStateOf("") }
     var relatedDocs by remember { mutableStateOf<List<RelatedOfficialDocument>>(emptyList()) }
     var loadingRelated by remember { mutableStateOf(false) }
+    var bulkFetchRunning by remember { mutableStateOf(false) }
+    var bulkFetchStatus by remember { mutableStateOf("") }
+    var bulkRelationsRunning by remember { mutableStateOf(false) }
+    var bulkRelationsStatus by remember { mutableStateOf("") }
+    var bulkFetchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+    var bulkRelationsJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
     val legalNotificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if(granted) {
             monitorEnabled=true
@@ -348,7 +354,100 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                     FilterChip(selected=category==value,onClick={category=value},label={Text(value)})
                 }
             }
-            Text("فهرست قابل جست‌وجوی منابع رسمی: "+officialLaws.size+" عنوان. برای استفاده آفلاین، متن هر قانون را از صفحه جزئیات دریافت و ذخیره کنید.",style=MaterialTheme.typography.bodySmall)
+            Text("فهرست قابل جست‌وجوی منابع رسمی: "+officialLaws.size+" عنوان. متن‌های دریافت‌شده فقط پس از کنترل حداقلی ذخیره می‌شوند؛ شکست دریافت به‌معنای نبود قانون یا مقرره نیست.",style=MaterialTheme.typography.bodySmall)
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                Button(
+                    enabled=!bulkRelationsRunning && !bulkFetchRunning,
+                    onClick={
+                        if(bulkFetchRunning) {
+                            bulkFetchJob?.cancel()
+                        } else {
+                            bulkFetchRunning=true
+                            bulkFetchStatus="شروع دریافت متن قوانین از مرجع رسمی..."
+                            bulkFetchJob=scope.launch {
+                                var downloaded=0
+                                var existing=0
+                                val failures=mutableListOf<String>()
+                                val candidates=officialLaws.filter { it.id.isNotBlank() }
+                                try {
+                                    for((index,law) in candidates.withIndex()) {
+                                        kotlinx.coroutines.ensureActive()
+                                        if(OfficialLawCache.has(context,law)) {
+                                            existing++
+                                        } else {
+                                            bulkFetchStatus="دریافت متن \${fa(index+1)} از \${fa(candidates.size)}: \${law.title}"
+                                            try {
+                                                withContext(Dispatchers.IO) { OfficialLawCache.fetchAndCache(context,law) }
+                                                downloaded++
+                                            } catch(error:Exception) {
+                                                if(error is kotlinx.coroutines.CancellationException) throw error
+                                                failures.add(law.title)
+                                            }
+                                        }
+                                    }
+                                    val missing=officialLaws.count { it.id.isBlank() }
+                                    bulkFetchStatus="پایان دریافت متن‌ها: \${fa(downloaded)} دریافت جدید، \${fa(existing)} قبلاً ذخیره‌شده، \${fa(failures.size)} ناموفق، \${fa(missing)} عنوان بدون شناسه تأییدشده. ناموفق: "+failures.take(6).joinToString("، ").ifBlank { "ندارد" }+(if(failures.size>6) " و موارد بیشتر" else "")
+                                } catch(_:kotlinx.coroutines.CancellationException) {
+                                    bulkFetchStatus="دریافت گروهی متوقف شد؛ متن‌های ذخیره‌شده باقی ماندند."
+                                } finally {
+                                    bulkFetchRunning=false
+                                    bulkFetchJob=null
+                                }
+                            }
+                        }
+                    },
+                    modifier=Modifier.weight(1f)
+                ) {
+                    Text(if(bulkFetchRunning) "توقف دریافت متن‌ها" else "دریافت گروهی متن قوانین")
+                }
+                OutlinedButton(
+                    enabled=!bulkFetchRunning,
+                    onClick={
+                        if(bulkRelationsRunning) {
+                            bulkRelationsJob?.cancel()
+                        } else {
+                            bulkRelationsRunning=true
+                            bulkRelationsStatus="شروع استخراج روابط رسمی..."
+                            bulkRelationsJob=scope.launch {
+                                var relatedCount=0
+                                var scanned=0
+                                val failures=mutableListOf<String>()
+                                val candidates=officialLaws.filter { it.id.isNotBlank() }
+                                try {
+                                    for((index,law) in candidates.withIndex()) {
+                                        kotlinx.coroutines.ensureActive()
+                                        bulkRelationsStatus="بررسی روابط \${fa(index+1)} از \${fa(candidates.size)}: \${law.title}"
+                                        try {
+                                            val found=withContext(Dispatchers.IO) { OfficialLawCache.fetchRelated(law) }
+                                            val json=org.json.JSONArray()
+                                            found.forEach { item ->
+                                                json.put(org.json.JSONObject().put("id",item.id).put("title",item.title).put("kind",item.kind).put("url",item.url))
+                                            }
+                                            preferences.edit().putString("official_related_"+law.id,json.toString()).apply()
+                                            relatedCount+=found.size
+                                            scanned++
+                                        } catch(error:Exception) {
+                                            if(error is kotlinx.coroutines.CancellationException) throw error
+                                            failures.add(law.title)
+                                        }
+                                    }
+                                    bulkRelationsStatus="پایان استخراج روابط: \${fa(scanned)} قانون بررسی شد؛ \${fa(relatedCount)} پیوند رسمی جمع‌آوری شد؛ \${fa(failures.size)} عنوان ناموفق. ناموفق: "+failures.take(6).joinToString("، ").ifBlank { "ندارد" }+(if(failures.size>6) " و موارد بیشتر" else "")+". فهرست پیوندها تضمینِ جامع‌بودن همه مقررات و آرا نیست."
+                                } catch(_:kotlinx.coroutines.CancellationException) {
+                                    bulkRelationsStatus="استخراج روابط متوقف شد؛ نتایج ثبت‌شده باقی ماندند."
+                                } finally {
+                                    bulkRelationsRunning=false
+                                    bulkRelationsJob=null
+                                }
+                            }
+                        }
+                    },
+                    modifier=Modifier.weight(1f)
+                ) {
+                    Text(if(bulkRelationsRunning) "توقف استخراج روابط" else "استخراج روابط همه قوانین")
+                }
+            }
+            if(bulkFetchStatus.isNotBlank()) Text(bulkFetchStatus,style=MaterialTheme.typography.bodySmall,color=if(bulkFetchRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+            if(bulkRelationsStatus.isNotBlank()) Text(bulkRelationsStatus,style=MaterialTheme.typography.bodySmall,color=if(bulkRelationsRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
             LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                 items(officialLaws.filter { law ->
                     (category=="همه" || law.category==category) &&
