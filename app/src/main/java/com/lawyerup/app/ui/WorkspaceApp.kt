@@ -1,6 +1,14 @@
 package com.lawyerup.app.ui
 
 import android.Manifest
+import android.app.Activity
+import android.content.ContentValues
+import android.content.Context
+import android.graphics.Bitmap
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
+import android.view.PixelCopy
 import android.os.Build
 import android.view.ViewGroup
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -88,6 +96,7 @@ fun WorkspaceApp(model:WorkspaceModel,onLock:()->Unit,locked:Boolean=false,theme
         page="portal"
     }
     Scaffold(topBar={TopAppBar(navigationIcon={if(page=="portal") {IconButton(onClick={page="home"}) {Icon(Icons.Outlined.ArrowBack,"بازگشت به دفتر")}}},title={Column {Text("پایش",fontWeight=FontWeight.Bold);Text("دفتر دیجیتال وکیل",style=MaterialTheme.typography.labelSmall)}},actions={
+        IconButton(onClick={captureAppWindow(context) { ok -> scope.launch { snack.showSnackbar(if(ok) "تصویر صفحه در گالری ذخیره شد" else "گرفتن تصویر صفحه ناموفق بود") } }}) {Icon(Icons.Outlined.CameraAlt,"گرفتن تصویر صفحه")}
         IconButton(onClick={page="health"}) {Icon(Icons.Outlined.MonitorHeart,"سلامت و اتصال")}
         IconButton(onClick=onLock) {Icon(Icons.Outlined.Lock,"قفل دفتر")}
     })},snackbarHost={SnackbarHost(snack)},bottomBar={if(page!="portal") NavigationBar {
@@ -387,4 +396,53 @@ fun HealthScreen(data:Workspace,controller:PortalController?,receive:()->Unit) {
         item {Text("گزارش بدون رمز، کوکی و مقدار ردیف‌ها",style=MaterialTheme.typography.titleMedium)}
         item {SelectionContainer {Text(controller?.diagnostic()?:"نشستی وجود ندارد",style=MaterialTheme.typography.bodySmall)}}
     }
+}
+
+
+/** Captures only the current app window after an explicit tap; it never captures in the background. */
+private fun captureAppWindow(context:Context,onResult:(Boolean)->Unit) {
+    val activity=context as? Activity
+    if(activity==null || activity.isFinishing) { onResult(false); return }
+    val view=activity.window.decorView
+    val width=view.width
+    val height=view.height
+    if(width<=0 || height<=0) { onResult(false); return }
+    val bitmap=runCatching { Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888) }.getOrNull()
+    if(bitmap==null) { onResult(false); return }
+    PixelCopy.request(activity.window,bitmap,{result ->
+        if(result!=PixelCopy.SUCCESS) {
+            bitmap.recycle()
+            onResult(false)
+            return@request
+        }
+        Thread {
+            var saved=false
+            var uri:android.net.Uri?=null
+            try {
+                val values=ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME,"Payesh-"+System.currentTimeMillis()+".png")
+                    put(MediaStore.Images.Media.MIME_TYPE,"image/png")
+                    if(Build.VERSION.SDK_INT>=29) {
+                        put(MediaStore.Images.Media.RELATIVE_PATH,"Pictures/Payesh")
+                        put(MediaStore.Images.Media.IS_PENDING,1)
+                    }
+                }
+                uri=context.contentResolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI,values)
+                    ?: throw IllegalStateException("Image destination unavailable")
+                context.contentResolver.openOutputStream(uri)?.use { output ->
+                    if(!bitmap.compress(Bitmap.CompressFormat.PNG,100,output)) throw IllegalStateException("PNG encoding failed")
+                } ?: throw IllegalStateException("Image stream unavailable")
+                if(Build.VERSION.SDK_INT>=29) {
+                    val ready=ContentValues().apply { put(MediaStore.Images.Media.IS_PENDING,0) }
+                    context.contentResolver.update(uri,ready,null,null)
+                }
+                saved=true
+            } catch(_:Exception) {
+                if(uri!=null) runCatching { context.contentResolver.delete(uri!!,null,null) }
+            } finally {
+                bitmap.recycle()
+                Handler(Looper.getMainLooper()).post { onResult(saved) }
+            }
+        }.start()
+    },Handler(Looper.getMainLooper()))
 }
