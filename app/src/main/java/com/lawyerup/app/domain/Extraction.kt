@@ -6,7 +6,8 @@ import java.net.URI
 import kotlinx.coroutines.CancellationException
 
 data class PageRead(val url: String, val rows: List<Map<String, String>>, val paging: String,
-    val login: Boolean, val loading: Boolean, val blockedFrames: Int, val truncated: Boolean, val adapter: String)
+    val login: Boolean, val loading: Boolean, val blockedFrames: Int, val truncated: Boolean, val adapter: String,
+    val activeView: String = "", val fromDate: String = "", val toDate: String = "")
 
 object Extraction {
     private val number = Regex("(?<![0-9])[0-9]{16,20}(?![0-9])")
@@ -36,9 +37,14 @@ object Extraction {
             }
         }
         val url = json.optString("url")
+        val pagination = json.optJSONObject("pagination")
         val login = json.optBoolean("login") || runCatching { URI(url).host == "iehraz.adliran.ir" }.getOrDefault(false)
-        return PageRead(url, rows, json.optJSONObject("pagination")?.optString("state") ?: "unknown",
-            login, json.optBoolean("loading"), json.optInt("blockedFrames"), json.optBoolean("truncated"), json.optString("adapter"))
+        return PageRead(
+            url, rows, pagination?.optString("state") ?: "unknown",
+            login, json.optBoolean("loading"), json.optInt("blockedFrames"), json.optBoolean("truncated"),
+            json.optString("adapter"), json.optString("viewTitle"),
+            pagination?.optString("fromDate").orEmpty(), pagination?.optString("toDate").orEmpty()
+        )
     }
 
     fun parse(fields: Map<String, String>, kind: RecordKind, source: String, origin: String = "web"): CourtRecord? {
@@ -91,10 +97,26 @@ class PaginationRunner(private val limit: Int = 100) {
         var rejected = 0
         val seen = mutableSetOf<String>()
         var source = ""
+        var activeView = ""
+        var fromDate = ""
+        var toDate = ""
+
+        fun scopeSummary(): String {
+            val parts = mutableListOf<String>()
+            if (activeView.isNotBlank()) parts += "فهرست ثنا: «$activeView»"
+            if (fromDate.isNotBlank() || toDate.isNotBlank()) {
+                val start = fromDate.ifBlank { "نامشخص" }
+                val end = toDate.ifBlank { "نامشخص" }
+                parts += "بازه تاریخی: $start تا $end"
+            } else {
+                parts += "بازه تاریخی: بدون فیلتر تاریخ قابل‌تشخیص"
+            }
+            return "؛ " + parts.joinToString("؛ ")
+        }
 
         fun stop(reason: String) = SyncReport(
             false, pages, accepted, changed,
-            "$reason؛ صفحه: $pages؛ ردیف معتبر: $accepted؛ ردشده: $rejected؛ تغییر: $changed. دریافت کامل تأیید نشده است",
+            "$reason${scopeSummary()}؛ صفحه: $pages؛ ردیف معتبر: $accepted؛ ردشده: $rejected؛ تغییر: $changed. دریافت کامل تأیید نشده است",
             rejected
         )
 
@@ -109,10 +131,26 @@ class PaginationRunner(private val limit: Int = 100) {
                 return stop("خواندن صفحه ناموفق بود (${error.javaClass.simpleName})")
             }
 
+            if (page.activeView.isNotBlank()) activeView = page.activeView
+            if (page.fromDate.isNotBlank()) fromDate = page.fromDate
+            if (page.toDate.isNotBlank()) toDate = page.toDate
+
             if (cancelled()) return stop("دریافت متوقف شد")
             if (!officialUrl(page.url)) return stop("نشانی غیرمجاز")
             if (page.login) return stop("ورود یا تمدید نشست لازم است")
             if (page.loading) return stop("بارگذاری کامل نشده است")
+
+            val noticeHost = runCatching {
+                URI(page.url).host.orEmpty().matches(Regex("eblagh[0-9]*\\.adliran\\.ir"))
+            }.getOrDefault(false)
+            if (noticeHost) {
+                val view = normalize(page.activeView)
+                val isRecognizedNoticeList = view.contains("ابلاغیه") &&
+                    Regex("مشاهده\\s*(?:شده|نشده)|باز\\s*نشده|جدید").containsMatchIn(view)
+                if (!isRecognizedNoticeList) {
+                    return stop("عنوان فهرست ابلاغیه‌های ثنا تشخیص داده نشد؛ برای جلوگیری از طبقه‌بندی اشتباه، دریافت انجام نشد")
+                }
+            }
 
             if (source.isEmpty()) source = safeSource(page.url)
             if (source != safeSource(page.url)) return stop("مسیر فهرست تغییر کرد")
@@ -155,7 +193,8 @@ class PaginationRunner(private val limit: Int = 100) {
 
             if (page.paging == "end") {
                 val complete = rejected == 0
-                val message = "$pages صفحه؛ $accepted ردیف معتبر؛ $changed تغییر؛ $rejected ردیف ردشده. " +
+                val message = "$pages صفحه؛ $accepted ردیف معتبر؛ $changed تغییر؛ $rejected ردیف ردشده" +
+                    "${scopeSummary()}؛ " +
                     if (complete) "پایان فهرست فعلی با فیلترهای سامانه شناسایی شد"
                     else "پایان فهرست فعلی شناسایی شد، اما دریافت به علت ردیف‌های ردشده کامل تأیید نمی‌شود"
                 return SyncReport(complete, pages, accepted, changed, message, rejected)
