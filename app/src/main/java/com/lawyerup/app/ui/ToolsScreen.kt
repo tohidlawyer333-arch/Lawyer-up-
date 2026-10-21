@@ -276,7 +276,7 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
                 ToolButton("پشتیبان و بازیابی","خروجی رمزگذاری‌شده؛ بدون سرویس ابری"){tool="backup"}
                 Row {Switch(reminders,{enabled->reminders=enabled;prefs.edit().putBoolean("reminders",enabled).apply();ReminderWorker.schedule(context,enabled);DeadlineReminderScheduler.setEnabled(context,enabled);if(enabled) model.workspace.value.tasks.forEach { DeadlineReminderScheduler.schedule(context,it) };if(enabled&&Build.VERSION.SDK_INT>=33)notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)});Text("یادآور دوره‌ای دفتر + هشدار موعدهای تأییدشده",Modifier.padding(8.dp))}
                 Text("یادآور پس‌زمینه، داده ذخیره‌شده را بررسی می‌کند؛ بدون نشست معتبر، ورود ثنا یا دریافت جدید را جعل نمی‌کند.",style=MaterialTheme.typography.bodySmall)
-                Text("نسخه ۲.۱.۱ • داده‌ها محلی و رمزگذاری‌شده • هیچ ارسال قضایی خودکار انجام نمی‌شود",style=MaterialTheme.typography.labelSmall)
+                Text("نسخه ۲.۱.۲ • داده‌ها محلی و رمزگذاری‌شده • هیچ ارسال قضایی خودکار انجام نمی‌شود",style=MaterialTheme.typography.labelSmall)
             }
         }
     }
