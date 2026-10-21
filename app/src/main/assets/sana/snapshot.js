@@ -107,6 +107,7 @@
     if(dateFilterPresent) {
       result.pagination.dateFilterPresent = true;
       if(result.pagination.state === 'end') result.pagination.state = 'filtered-end';
+      else if(result.pagination.state === 'next') result.pagination.state = 'filtered-next';
       else if(result.pagination.state === 'unknown' || (!controls.length && !visiblePager)) result.pagination.state = 'filtered';
     } else if(!controls.length && !visiblePager) {
       result.pagination.state = 'end';
