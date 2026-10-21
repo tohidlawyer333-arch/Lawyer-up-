@@ -56,4 +56,19 @@ class RepositoryTest {
         assertTrue(runCatching {repository.restore(json.toString())}.isFailure)
         assertEquals(listOf(notice.noticeNumber),repository.snapshot().notices.map {it.noticeNumber})
     }
+    @Test fun evidenceDocumentsPersistAndSurviveBackupRestore()=runTest {
+        val first=EvidenceDocument.create("سند OCR","شماره پرونده: 1000000000000001","local-ocr")
+        val second=EvidenceDocument.create("سند دوم","شرح رویداد برای تحلیل","local-ocr")
+        repository.saveEvidence(first)
+        assertEquals(listOf(first),repository.snapshot().evidence)
+        val backup=repository.export()
+        repository.saveEvidence(second)
+        assertEquals(2,repository.snapshot().evidence.size)
+        repository.restore(backup)
+        val restored=repository.snapshot().evidence
+        assertEquals(2,restored.size)
+        assertTrue(restored.any {it.id==first.id && it.text==first.text})
+        assertTrue(restored.any {it.id==second.id && it.text==second.text})
+    }
+
 }
