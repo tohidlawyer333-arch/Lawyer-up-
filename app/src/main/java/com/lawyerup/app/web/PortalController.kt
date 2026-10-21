@@ -209,11 +209,43 @@ class PortalController(context: Context, private val repository: WorkspaceReposi
             }, { cancelled || disposed }) { pages, rows -> status = "$pages صفحه؛ $rows ردیف معتبر؛ در حال دریافت…" }
             else {
                 val page = read()
-                require(!page.login) { "ورود یا تمدید نشست لازم است" }
-                val imported = withContext(Dispatchers.IO) { repository.ingest(page) }
-                val complete = imported.accepted > 0 && imported.rejected == 0 && !page.truncated && page.blockedFrames == 0 && page.paging == "end"
-                SyncReport(complete, 1, imported.accepted, imported.changed,
-                    if(imported.accepted > 0) "${imported.accepted} ردیف معتبر؛ ${imported.rejected} ردیف ردشده؛ ${imported.changed} تغییر؛ فقط صفحه فعلی${if(!complete) "؛ دریافت کامل تأیید نشده است" else ""}" else "هیچ رکورد معتبری از صفحه فعلی استخراج نشد؛ این به معنی خالی بودن کارتابل نیست. گزارش ساختار و فیلترهای ثنا را بررسی کنید.", imported.rejected)
+                if (page.login) {
+                    SyncReport(false, 0, 0, 0, "ورود یا تمدید نشست لازم است؛ داده‌ای از این صفحه ذخیره نشد")
+                } else {
+                    val pageHost = runCatching { java.net.URI(page.url).host.orEmpty() }.getOrNull().orEmpty()
+                    val noticeHost = pageHost.matches(Regex("eblagh[0-9]*\\.adliran\\.ir"))
+                    val activeView = normalize(page.activeView)
+                    val validNoticeView = activeView.contains("ابلاغیه") &&
+                        Regex("مشاهده\\s*(?:شده|نشده)|باز\\s*نشده|جدید").containsMatchIn(activeView)
+                    if (noticeHost && !validNoticeView) {
+                        SyncReport(false, 0, 0, 0,
+                            "عنوان فهرست ابلاغیه‌های ثنا تشخیص داده نشد؛ هیچ رکوردی وارد نشد. به معنای خالی بودن کارتابل نیست.")
+                    } else {
+                        val imported = withContext(Dispatchers.IO) { repository.ingest(page) }
+                        val scope = buildString {
+                            if (page.activeView.isNotBlank()) append("فهرست ثنا: «").append(page.activeView).append("»؛ ")
+                            if (page.fromDate.isNotBlank() || page.toDate.isNotBlank()) {
+                                append("بازه تاریخی: ").append(page.fromDate.ifBlank { "نامشخص" })
+                                    .append(" تا ").append(page.toDate.ifBlank { "نامشخص" }).append("؛ ")
+                            }
+                        }
+                        val recognizedEnd = page.paging == "end"
+                        val filtered = page.paging == "filtered" || page.paging == "filtered-end"
+                        val complete = imported.accepted > 0 && imported.rejected == 0 &&
+                            !page.truncated && page.blockedFrames == 0 && recognizedEnd && !filtered
+                        val message = when {
+                            imported.accepted == 0 ->
+                                "هیچ رکورد معتبری از صفحه فعلی استخراج نشد؛ این به معنی خالی بودن کارتابل نیست. ${scope}بررسی قالب، فیلترها و گزارش عیب‌یابی لازم است."
+                            filtered ->
+                                "${scope}${imported.accepted} ردیف معتبر؛ ${imported.rejected} ردشده؛ ${imported.changed} تغییر؛ فقط بازه/فهرست فعلی دریافت شد؛ سوابق خارج از آن دریافت نشده‌اند."
+                            !complete ->
+                                "${scope}${imported.accepted} ردیف معتبر؛ ${imported.rejected} ردشده؛ ${imported.changed} تغییر؛ فقط صفحه فعلی دریافت شد. پایان فهرست تأیید نشده است."
+                            else ->
+                                "${scope}${imported.accepted} ردیف معتبر؛ ${imported.rejected} ردشده؛ ${imported.changed} تغییر؛ پایان همین فهرست با فیلترهای فعلی شناسایی شد. این نتیجه به معنی دریافت کل سوابق تاریخی نیست."
+                        }
+                        SyncReport(complete, 1, imported.accepted, imported.changed, message, imported.rejected)
+                    }
+                }
             }
         } catch(_: CancellationException) {
             SyncReport(false, 0, 0, 0, "دریافت متوقف شد؛ صفحات ذخیره‌شده باقی می‌مانند")
