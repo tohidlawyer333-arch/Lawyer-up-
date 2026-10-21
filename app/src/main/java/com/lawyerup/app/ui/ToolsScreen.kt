@@ -17,10 +17,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.lawyerup.app.*
 import com.lawyerup.app.data.BackupCipher
 import com.lawyerup.app.notifications.DeadlineReminderScheduler
+import com.lawyerup.app.security.SanaCredentialVault
 import com.lawyerup.app.documents.Documents
 import com.lawyerup.app.domain.*
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +47,10 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
     var documentStatus by remember {mutableStateOf("")}
     var kind by remember {mutableStateOf(RecordKind.NOTICE)}
     var password by remember {mutableStateOf("")}
+    var sanaNationalCode by remember {mutableStateOf("")}
+    var sanaPersonalPassword by remember {mutableStateOf("")}
+    var sanaCredentialsLoaded by remember {mutableStateOf(false)}
+    var clearSanaCredentialsConfirm by remember {mutableStateOf(false)}
     var pendingBytes by remember {mutableStateOf<ByteArray?>(null)}
     var exportText by remember {mutableStateOf("")}
     val busy by model.busy.collectAsState()
@@ -54,6 +61,10 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
         importedText=stored[0]
         deletedText=stored[1]
         clipboardText=stored[2]
+        val sanaCredentials=withContext(Dispatchers.IO) { SanaCredentialVault.load(context) }
+        sanaNationalCode=sanaCredentials?.nationalCode.orEmpty()
+        sanaPersonalPassword=sanaCredentials?.personalPassword.orEmpty()
+        sanaCredentialsLoaded=true
         textBuffersLoaded=true
     }
     LaunchedEffect(importedText,textBuffersLoaded) {
@@ -172,6 +183,58 @@ fun ToolsScreen(model:WorkspaceModel,navigate:(String)->Unit,receive:()->Unit,th
                 Text("تنظیمات، حریم خصوصی و ظاهر",style=MaterialTheme.typography.titleLarge)
                 Text("متن OCR، متن قابل‌بازیابی و کلیپ‌بورد در حافظه رمزگذاری‌شده محلی نگهداری می‌شوند. این اطلاعات به سرویس ابری ارسال نمی‌شوند.")
                 Text("تم سراسری برنامه؛ رنگ پس‌زمینه، کارت‌ها، دکمه‌ها، نوار پیمایش و اجزای اصلی تغییر می‌کند.",style=MaterialTheme.typography.bodySmall)
+                Divider()
+                Text("ورود اختیاری ثنا روی همین دستگاه",style=MaterialTheme.typography.titleMedium)
+                Text("کد ملی و رمز شخصی در Android Keystore رمزگذاری می‌شوند. رمز موقت/یک‌بارمصرف و کوکی نشست هرگز ذخیره نمی‌شوند. برنامه خودکار وارد حساب نمی‌شود و فرم را ارسال نمی‌کند؛ پرکردن اطلاعات از صفحه ثنا باید با لمس دکمه و حضور شما انجام شود.",style=MaterialTheme.typography.bodySmall)
+                OutlinedTextField(
+                    value=sanaNationalCode,
+                    onValueChange={sanaNationalCode=it.filter { ch->ch in '0'..'9' }.take(10)},
+                    label={Text("کد ملی (۱۰ رقم)")},
+                    keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Number),
+                    singleLine=true,
+                    modifier=Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value=sanaPersonalPassword,
+                    onValueChange={sanaPersonalPassword=it},
+                    label={Text("رمز شخصی ثنا")},
+                    visualTransformation=PasswordVisualTransformation(),
+                    singleLine=true,
+                    modifier=Modifier.fillMaxWidth()
+                )
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        enabled=sanaCredentialsLoaded && sanaNationalCode.length==10 && sanaPersonalPassword.isNotBlank() && !busy,
+                        onClick={
+                            val code=sanaNationalCode
+                            val personal=sanaPersonalPassword
+                            model.perform {
+                                SanaCredentialVault.save(context,code,personal)
+                                model.message.value="مشخصات ورود ثنا به‌صورت رمزگذاری‌شده روی همین دستگاه ذخیره شد؛ رمز موقت ذخیره نشده است."
+                                withContext(Dispatchers.Main) { sanaPersonalPassword="" }
+                            }
+                        },
+                        modifier=Modifier.weight(1f)
+                    ) { Text("ذخیره رمزگذاری‌شده") }
+                    OutlinedButton(
+                        enabled=SanaCredentialVault.isSaved(context) && !busy,
+                        onClick={clearSanaCredentialsConfirm=true},
+                        modifier=Modifier.weight(1f)
+                    ) { Text("حذف مشخصات ذخیره‌شده") }
+                }
+                if(clearSanaCredentialsConfirm) AlertDialog(
+                    onDismissRequest={clearSanaCredentialsConfirm=false},
+                    title={Text("حذف مشخصات ورود ثنا؟")},
+                    text={Text("کد ملی و رمز شخصی ذخیره‌شده از حافظه برنامه حذف خواهند شد. هیچ تغییری در حساب ثنا ایجاد نمی‌شود.")},
+                    confirmButton={Button(onClick={
+                        SanaCredentialVault.clear(context)
+                        sanaNationalCode=""
+                        sanaPersonalPassword=""
+                        clearSanaCredentialsConfirm=false
+                        model.message.value="مشخصات ورود ثنا از حافظه محلی حذف شد."
+                    }) { Text("حذف") }},
+                    dismissButton={TextButton(onClick={clearSanaCredentialsConfirm=false}) { Text("انصراف") }}
+                )
                 Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     listOf("teal" to "سبزآبی","navy" to "سرمه‌ای","pink" to "صورتی").forEach {(value,label)->FilterChip(selected=themeChoice==value,onClick={onThemeChange(value)},label={Text(label)})}
                 }
