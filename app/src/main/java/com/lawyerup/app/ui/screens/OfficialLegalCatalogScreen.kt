@@ -37,6 +37,17 @@ private data class OfficialLaw(val title:String,val category:String,val id:Strin
     val key:String get() = if(id.isNotBlank()) id else title
     fun url():String = if(id.isBlank()) "https://qavanin.ir/?Report_ID=1" else "https://qavanin.ir/Law/TreeText/?IDS="+id
 }
+private data class RelatedOfficialDocument(val id:String,val title:String,val kind:String,val url:String)
+
+private fun relatedKind(title:String):String = when {
+    title.contains("آیین‌نامه") || title.contains("آیین نامه") -> "آیین‌نامه"
+    title.contains("رأی وحدت رویه") || title.contains("رای وحدت رویه") -> "رأی وحدت رویه"
+    title.contains("نظریه مشورتی") -> "نظریه مشورتی"
+    title.contains("مصوبه") || title.contains("تصویب‌نامه") || title.contains("تصویب نامه") -> "مصوبه"
+    title.contains("بخشنامه") || title.contains("بخش‌نامه") -> "بخش‌نامه"
+    else -> "سند مرتبط رسمی"
+}
+
 private val officialLaws = listOf(
     OfficialLaw("قانون مدنی","حقوقی","12021850837713548188"),
     OfficialLaw("قانون آیین دادرسی دادگاه‌های عمومی و انقلاب در امور مدنی","حقوقی","502404499976366661"),
@@ -82,6 +93,57 @@ private val officialLaws = listOf(
 )
 
 private object OfficialLawCache {
+
+    fun fetchRelated(law:OfficialLaw):List<RelatedOfficialDocument> {
+        require(law.id.isNotBlank()) { "شناسه رسمی این عنوان نیازمند تطبیق است." }
+        val endpoints=listOf(
+            "https://qavanin.ir/Law/Attribute/?IDS="+law.id,
+            "https://qavanin.ir/Law/StatusIndex/?IDS="+law.id
+        )
+        val results=linkedMapOf<String,RelatedOfficialDocument>()
+        val anchors=Regex("(?is)<a\\b[^>]*href\\s*=\\s*['\"]([^'\"]+)['\"][^>]*>(.*?)</a>")
+        for(endpoint in endpoints) {
+            val html=try {
+                val connection=URL(endpoint).openConnection() as HttpURLConnection
+                try {
+                    connection.instanceFollowRedirects=true
+                    connection.connectTimeout=15000
+                    connection.readTimeout=20000
+                    connection.setRequestProperty("User-Agent","Payesh-Official-Relations/2.0")
+                    val code=connection.responseCode
+                    if(code !in 200..299) continue
+                    val host=connection.url.host.lowercase()
+                    if(host!="qavanin.ir" && !host.endsWith(".qavanin.ir")) continue
+                    val output=ByteArrayOutputStream()
+                    connection.inputStream.use { input ->
+                        val buffer=ByteArray(8192)
+                        while(true) {
+                            val count=input.read(buffer)
+                            if(count<0) break
+                            if(output.size()+count>6000000) break
+                            output.write(buffer,0,count)
+                        }
+                    }
+                    String(output.toByteArray(),Charsets.UTF_8)
+                } finally { connection.disconnect() }
+            } catch(_:Exception) { continue }
+            for(match in anchors.findAll(html)) {
+                val raw=match.groupValues[1].replace("&amp;","&")
+                if(!raw.contains("TreeText",ignoreCase=true)) continue
+                val absolute=try { URL(URL(endpoint),raw) } catch(_:Exception) { continue }
+                val host=absolute.host.lowercase()
+                if(host!="qavanin.ir" && !host.endsWith(".qavanin.ir")) continue
+                val id=Regex("[?&]IDS=(\\d+)",RegexOption.IGNORE_CASE).find(absolute.toString())?.groupValues?.get(1) ?: continue
+                if(id==law.id) continue
+                val title=Html.fromHtml(match.groupValues[2],Html.FROM_HTML_MODE_LEGACY).toString()
+                    .replace(Regex("\\s+")," ").trim().take(180)
+                if(title.length<4) continue
+                results[id]=RelatedOfficialDocument(id,title,relatedKind(title),absolute.toString())
+            }
+        }
+        return results.values.toList().take(300)
+    }
+
     private fun file(context:Context,law:OfficialLaw):File {
         val directory=File(context.filesDir,"official-laws").apply { mkdirs() }
         val name=law.id.ifBlank { "search-"+law.title.hashCode().toString().replace("-","n") }
@@ -175,6 +237,8 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
     var monitorEnabled by remember { mutableStateOf(LegalUpdateWorker.isEnabled(context)) }
     var monitorMessage by remember { mutableStateOf("") }
     var exportText by remember { mutableStateOf("") }
+    var relatedDocs by remember { mutableStateOf<List<RelatedOfficialDocument>>(emptyList()) }
+    var loadingRelated by remember { mutableStateOf(false) }
     val saveText=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if(uri!=null) runCatching {
             context.contentResolver.openOutputStream(uri)?.bufferedWriter(Charsets.UTF_8)?.use { it.write(exportText) }
@@ -192,6 +256,13 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
         localText=""
         searchWithin=""
         message=""
+        relatedDocs=runCatching {
+            val json=org.json.JSONArray(preferences.getString("official_related_"+law.id,"[]") ?: "[]")
+            (0 until json.length()).map { index ->
+                val item=json.getJSONObject(index)
+                RelatedOfficialDocument(item.optString("id"),item.optString("title"),item.optString("kind"),item.optString("url"))
+            }
+        }.getOrDefault(emptyList())
         scope.launch {
             val saved=withContext(Dispatchers.IO) { OfficialLawCache.read(context,law) }
             if(selectedKey==law.key) {
@@ -291,6 +362,45 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                             } finally { loading=false }
                         }
                     }) { Icon(Icons.Outlined.Download,null);Spacer(Modifier.width(4.dp));Text(if(loading) "در حال دریافت..." else "دریافت/به‌روزرسانی آفلاین") }
+                }
+                OutlinedButton(
+                    enabled=!loadingRelated && law.id.isNotBlank(),
+                    onClick={
+                        loadingRelated=true
+                        message="در حال بررسی پیوندهای رسمی این قانون..."
+                        scope.launch {
+                            try {
+                                val found=withContext(Dispatchers.IO) { OfficialLawCache.fetchRelated(law) }
+                                relatedDocs=found
+                                val json=org.json.JSONArray()
+                                found.forEach { item ->
+                                    json.put(org.json.JSONObject().put("id",item.id).put("title",item.title).put("kind",item.kind).put("url",item.url))
+                                }
+                                preferences.edit().putString("official_related_"+law.id,json.toString()).apply()
+                                message=if(found.isEmpty()) "در صفحات ارتباطی قابل‌دسترسی، سند مرتبطی استخراج نشد؛ این به معنی نبود مقررات یا آرا نیست. صفحات رسمی را جداگانه بررسی کنید."
+                                    else "از صفحات ارتباطی رسمی "+found.size+" عنوان مرتبط استخراج شد؛ کامل‌بودن فهرست باید در مرجع رسمی بررسی شود."
+                            } catch(error:Exception) {
+                                message="دریافت روابط رسمی ناموفق بود."
+                            } finally { loadingRelated=false }
+                        }
+                    }
+                ) { Text(if(loadingRelated) "در حال بررسی..." else "استخراج فهرست اسناد مرتبط") }
+            }
+            if(relatedDocs.isNotEmpty()) {
+                Text("روابط استخراج‌شده از صفحات رسمی (نه تضمین فهرست کامل):",fontWeight=FontWeight.SemiBold)
+                LazyColumn(Modifier.heightIn(max=190.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                    items(relatedDocs,key={it.id}) { item ->
+                        Card {
+                            Row(Modifier.fillMaxWidth().padding(8.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(6.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(item.title,style=MaterialTheme.typography.bodyMedium)
+                                    Text(item.kind,style=MaterialTheme.typography.labelSmall)
+                                }
+                                TextButton(onClick={open(item.url)}) { Text("مرجع") }
+                                TextButton(onClick={select(OfficialLaw(item.title,item.kind,item.id))}) { Text("مطالعه") }
+                            }
+                        }
+                    }
                 }
             }
             if(localText.isNotBlank()) {
