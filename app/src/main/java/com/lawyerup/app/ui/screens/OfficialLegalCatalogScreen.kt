@@ -263,6 +263,7 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
     }
     val preferences=remember { context.getSharedPreferences("preferences",Context.MODE_PRIVATE) }
     val lastCheck=preferences.getLong("legal_watch_last_check",0L)
+    val lastWatchError=preferences.getString("legal_watch_error","").orEmpty()
     val recentChanges=runCatching { org.json.JSONArray(preferences.getString("legal_watch_updates","[]") ?: "[]") }.getOrNull()
 
     fun open(url:String) { runCatching { uriHandler.openUri(url) }.onFailure { message="بازکردن پیوند رسمی ناموفق بود." } }
@@ -329,6 +330,7 @@ fun OfficialLegalCatalogScreen(onBack:()->Unit) {
                         OutlinedButton(onClick={LegalUpdateWorker.checkNow(context);monitorMessage="درخواست بررسی دستی ارسال شد؛ نتیجه پس از اجرای کار در این صفحه به‌روز می‌شود."}) { Text("بررسی اکنون") }
                     }
                     if(monitorMessage.isNotBlank()) Text(monitorMessage,style=MaterialTheme.typography.bodySmall)
+                    if(lastWatchError.isNotBlank()) Text(lastWatchError,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
                     if(recentChanges!=null && recentChanges.length()>0) {
                         Text("آخرین اسناد شناسایی‌شده:",fontWeight=FontWeight.SemiBold)
                         for(i in 0 until minOf(3,recentChanges.length())) {

@@ -30,7 +30,10 @@ class LegalUpdateWorker(context:Context,parameters:WorkerParameters):CoroutineWo
 
     override suspend fun doWork():Result = try {
         val entries=fetchIndex()
-        if(entries.isEmpty()) return Result.retry()
+        if(entries.isEmpty()) {
+            prefs.edit().putString("legal_watch_error","فهرست رسمی قابل‌خواندن نبود؛ بررسی کامل انجام نشده است.").apply()
+            return Result.retry()
+        }
         val known=JSONObject(prefs.getString("legal_watch_known","{}") ?: "{}")
         if(!prefs.getBoolean("legal_watch_initialized",false)) {
             entries.forEach { known.put(it.id,it.title) }
