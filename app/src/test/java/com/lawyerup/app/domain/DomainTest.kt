@@ -51,6 +51,24 @@ class DomainTest {
     @Test fun cancelledBatchDoesNotRead()=runTest {var reads=0;val result=PaginationRunner().run({reads++;page()},{ImportReport(1,1,0)},{true},{true},{_,_->});assertFalse(result.success);assertEquals(0,reads)}
     @Test fun loginNeverStored()=runTest {var writes=0;val result=PaginationRunner().run({page().copy(login=true)},{writes++;ImportReport(1,1,0)},{true},{false},{_,_->});assertFalse(result.success);assertEquals(0,writes)}
     @Test fun truncatedListNotComplete()=runTest {assertFalse(PaginationRunner().run({page().copy(truncated=true)},{ImportReport(1,1,0)},{true},{false},{_,_->}).success)}
+    @Test fun unknownSanaViewNeverImportsRecords()=runTest {
+        val unreadableList=PageRead("https://eblagh1.adliran.ir/ENotice/Index",
+            listOf(mapOf("شماره ابلاغیه" to noticeNumber)),"end",false,false,0,false,"test")
+        var writes=0
+        val result=PaginationRunner().run({unreadableList},{writes++;ImportReport(1,1,0)},{true},{false},{_,_->})
+        assertFalse(result.success)
+        assertEquals(0,writes)
+        assertEquals(0,result.pages)
+        assertTrue(result.message.contains("عنوان فهرست ابلاغیه"))
+        assertTrue(result.message.contains("دریافت کامل تأیید نشده است"))
+    }
+    @Test fun reportNamesSelectedViewAndDateRange()=runTest {
+        val current=page(paging="end").copy(activeView="ابلاغیه‌های مشاهده شده",fromDate="1405/06/29",toDate="1405/07/28")
+        val result=PaginationRunner().run({current},{ImportReport(1,1,0)},{true},{false},{_,_->})
+        assertTrue(result.success)
+        assertTrue(result.message.contains("ابلاغیه‌های مشاهده شده"))
+        assertTrue(result.message.contains("1405/06/29 تا 1405/07/28"))
+    }
     @Test fun zeroRowsNotSuccess()=runTest {
         val result=PaginationRunner().run({page()},{ImportReport(0,0,1)},{true},{false},{_,_->})
         assertFalse(result.success)
