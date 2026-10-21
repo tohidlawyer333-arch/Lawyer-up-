@@ -48,9 +48,20 @@
       }
     }, true);
 
-    const frames = [...doc.querySelectorAll("iframe,frame")];
-    for (const frame of frames) {
-      try { if (frame.contentDocument) install(frame.contentDocument); } catch (_) {}
+    const installFrames = root => {
+      const frames = [];
+      if(root && root.matches && root.matches("iframe,frame")) frames.push(root);
+      if(root && root.querySelectorAll) frames.push(...root.querySelectorAll("iframe,frame"));
+      for (const frame of frames) {
+        try { if (frame.contentDocument) install(frame.contentDocument); } catch (_) {}
+      }
+    };
+    installFrames(doc);
+    if(win.MutationObserver && doc.documentElement) {
+      const observer = new win.MutationObserver(mutations => {
+        for(const mutation of mutations) for(const node of mutation.addedNodes) installFrames(node);
+      });
+      observer.observe(doc.documentElement,{childList:true,subtree:true});
     }
 
     if (doc === win.top?.document) {
