@@ -28,7 +28,8 @@ import java.util.concurrent.TimeUnit
 class LegalUpdateWorker(context:Context,parameters:WorkerParameters):CoroutineWorker(context,parameters) {
     private val prefs=context.getSharedPreferences("preferences",Context.MODE_PRIVATE)
 
-    override suspend fun doWork():Result = try {
+    override suspend fun doWork():Result {
+        return try {
         val entries=fetchIndex()
         if(entries.isEmpty()) {
             prefs.edit().putString("legal_watch_error","فهرست رسمی قابل‌خواندن نبود؛ بررسی کامل انجام نشده است.").apply()
@@ -64,6 +65,7 @@ class LegalUpdateWorker(context:Context,parameters:WorkerParameters):CoroutineWo
     } catch(_:Exception) {
         prefs.edit().putString("legal_watch_error","بررسی فهرست رسمی ناموفق بود؛ اتصال یا ساختار صفحه را بررسی کنید.").apply()
         if(runAttemptCount<3) Result.retry() else Result.failure()
+        }
     }
 
     private data class Entry(val id:String,val title:String,val url:String)
@@ -126,7 +128,7 @@ class LegalUpdateWorker(context:Context,parameters:WorkerParameters):CoroutineWo
             entries.size==1 -> preview
             entries.size<=3 -> preview
             else -> preview+" و "+(entries.size-3)+" مورد دیگر"
-        }"
+        }
         val notification=NotificationCompat.Builder(applicationContext,"payesh_legal_updates")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle("پایش: فهرست رسمی قوانین تغییر کرده است")
@@ -149,7 +151,6 @@ class LegalUpdateWorker(context:Context,parameters:WorkerParameters):CoroutineWo
             val manager=WorkManager.getInstance(context.applicationContext)
             if(!enabled) {
                 manager.cancelUniqueWork(WORK_NAME)
-                manager.cancelUniquePeriodicWork(WORK_NAME)
                 return
             }
             val request=PeriodicWorkRequestBuilder<LegalUpdateWorker>(12,TimeUnit.HOURS)
